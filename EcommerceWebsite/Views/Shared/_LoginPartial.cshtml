@@ -1,0 +1,33 @@
+@using Ecommerce.Core.Models.Entities
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+
+<ul class="navbar-nav">
+@if (SignInManager.IsSignedIn(User))
+{
+    <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Xin chào, @((await UserManager.GetUserAsync(User))?.FirstName ?? User.Identity?.Name)
+        </a>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+            <li><a class="dropdown-item" asp-controller="Account" asp-action="Profile">Thông tin cá nhân</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+                <form class="form-inline" asp-controller="Account" asp-action="Logout" method="post">
+                    <button type="submit" class="dropdown-item">Đăng xuất</button>
+                </form>
+            </li>
+        </ul>
+    </li>
+}
+else
+{
+    <li class="nav-item">
+        <a class="nav-link" asp-controller="Account" asp-action="Register">Đăng ký</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" asp-controller="Account" asp-action="Login">Đăng nhập</a>
+    </li>
+}
+</ul> 

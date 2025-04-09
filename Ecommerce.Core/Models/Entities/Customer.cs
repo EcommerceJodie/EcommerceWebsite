@@ -16,9 +16,11 @@ namespace Ecommerce.Core.Models.Entities
         public DateTime? DateOfBirth { get; set; }
         public bool IsActive { get; set; } = true;
         
-        public string IdentityUserId { get; set; }
+        public string UserId { get; set; }
+        public virtual ApplicationUser User { get; set; }
         
         public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
         public virtual ICollection<ProductRating> ProductRatings { get; set; } = new List<ProductRating>();
+        public virtual ICollection<Cart> Carts { get; set; } = new List<Cart>();
     }
 } 

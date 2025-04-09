@@ -1,5 +1,7 @@
 using Ecommerce.Core.Models.Entities;
 using Ecommerce.Infrastructure.Data.Configurations;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -9,7 +11,9 @@ using System.Linq.Expressions;
 
 namespace Ecommerce.Infrastructure.Data
 {
-    public class ApplicationDbContext : DbContext
+    public class ApplicationDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, string,
+        IdentityUserClaim<string>, IdentityUserRole<string>, IdentityUserLogin<string>,
+        IdentityRoleClaim<string>, IdentityUserToken<string>>
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
@@ -22,15 +26,35 @@ namespace Ecommerce.Infrastructure.Data
         public DbSet<Order> Orders { get; set; }
         public DbSet<OrderDetail> OrderDetails { get; set; }
         public DbSet<ProductRating> ProductRatings { get; set; }
+        public DbSet<Cart> Carts { get; set; }
+        public DbSet<CartItem> CartItems { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
+            // Đổi tên các bảng Identity
+            modelBuilder.Entity<ApplicationUser>().ToTable("Users");
+            modelBuilder.Entity<ApplicationRole>().ToTable("Roles");
+            modelBuilder.Entity<IdentityUserRole<string>>().ToTable("UserRoles");
+            modelBuilder.Entity<IdentityUserClaim<string>>().ToTable("UserClaims");
+            modelBuilder.Entity<IdentityUserLogin<string>>().ToTable("UserLogins");
+            modelBuilder.Entity<IdentityRoleClaim<string>>().ToTable("RoleClaims");
+            modelBuilder.Entity<IdentityUserToken<string>>().ToTable("UserTokens");
+
             modelBuilder.ApplyConfiguration(new CategoryConfiguration());
             modelBuilder.ApplyConfiguration(new ProductConfiguration());
             modelBuilder.ApplyConfiguration(new ProductImageConfiguration());
             modelBuilder.ApplyConfiguration(new OrderConfiguration());
+            modelBuilder.ApplyConfiguration(new CartConfiguration());
+            modelBuilder.ApplyConfiguration(new CartItemConfiguration());
+
+            // Cấu hình mối quan hệ Customer - ApplicationUser
+            modelBuilder.Entity<Customer>()
+                .HasOne(c => c.User)
+                .WithMany(u => u.Customers)
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Product>()
                 .HasOne(p => p.Category)
@@ -74,6 +98,9 @@ namespace Ecommerce.Infrastructure.Data
                 .HasForeignKey(pr => pr.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Thêm query filter cho ApplicationUser và ApplicationRole
+            modelBuilder.Entity<ApplicationUser>().HasQueryFilter(e => !e.IsDeleted);
+            modelBuilder.Entity<ApplicationRole>().HasQueryFilter(e => !e.IsDeleted);
             modelBuilder.Entity<Category>().HasQueryFilter(e => !e.IsDeleted);
             modelBuilder.Entity<Product>().HasQueryFilter(e => !e.IsDeleted);
             modelBuilder.Entity<ProductImage>().HasQueryFilter(e => !e.IsDeleted);
@@ -81,6 +108,8 @@ namespace Ecommerce.Infrastructure.Data
             modelBuilder.Entity<Order>().HasQueryFilter(e => !e.IsDeleted);
             modelBuilder.Entity<OrderDetail>().HasQueryFilter(e => !e.IsDeleted);
             modelBuilder.Entity<ProductRating>().HasQueryFilter(e => !e.IsDeleted);
+            modelBuilder.Entity<Cart>().HasQueryFilter(e => !e.IsDeleted);
+            modelBuilder.Entity<CartItem>().HasQueryFilter(e => !e.IsDeleted);
         }
 
         public override int SaveChanges()
@@ -98,6 +127,7 @@ namespace Ecommerce.Infrastructure.Data
         private void UpdateAuditFields()
         {
             var now = DateTime.UtcNow;
+            // Cập nhật thông tin cho BaseEntity
             foreach (var entry in ChangeTracker.Entries<BaseEntity>())
             {
                 switch (entry.State)
@@ -112,6 +142,34 @@ namespace Ecommerce.Infrastructure.Data
                     case EntityState.Deleted:
                         entry.State = EntityState.Modified;
                         entry.Entity.IsDeleted = true;
+                        entry.Entity.UpdatedAt = now;
+                        break;
+                }
+            }
+
+            // Cập nhật thông tin cho ApplicationUser
+            foreach (var entry in ChangeTracker.Entries<ApplicationUser>())
+            {
+                switch (entry.State)
+                {
+                    case EntityState.Added:
+                        entry.Entity.CreatedAt = now;
+                        break;
+                    case EntityState.Modified:
+                        entry.Entity.UpdatedAt = now;
+                        break;
+                }
+            }
+
+            // Cập nhật thông tin cho ApplicationRole
+            foreach (var entry in ChangeTracker.Entries<ApplicationRole>())
+            {
+                switch (entry.State)
+                {
+                    case EntityState.Added:
+                        entry.Entity.CreatedAt = now;
+                        break;
+                    case EntityState.Modified:
                         entry.Entity.UpdatedAt = now;
                         break;
                 }
