@@ -10,24 +10,18 @@ using System;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Thêm DbContext
 builder.Services.AddDatabaseServices(builder.Configuration);
 
-// Thêm Identity
 builder.Services.AddIdentityServices();
 
-// Thêm Cookie Authentication
 builder.Services.AddCookieAuthentication();
 
-// Đăng ký ITokenService
 builder.Services.AddScoped<ITokenService, TokenService>();
 
-// Thêm các dịch vụ khác
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
 
-// Seed dữ liệu
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -55,7 +49,6 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
-// Thêm Authentication middleware trước Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 

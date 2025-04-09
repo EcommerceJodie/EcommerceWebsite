@@ -50,10 +50,8 @@ namespace EcommerceWebsite.Controllers
 
                 if (result.Succeeded)
                 {
-                    // Thêm người dùng vào role Customer
                     await _userManager.AddToRoleAsync(user, "Customer");
 
-                    // Tạo Customer liên kết với User
                     var customer = new Customer
                     {
                         FirstName = model.FirstName,
@@ -63,7 +61,6 @@ namespace EcommerceWebsite.Controllers
                         UserId = user.Id
                     };
 
-                    // Đăng nhập người dùng
                     await _signInManager.SignInAsync(user, isPersistent: false);
                     return RedirectToAction("Index", "Home");
                 }

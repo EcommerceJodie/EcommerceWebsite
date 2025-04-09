@@ -22,7 +22,6 @@ namespace Ecommerce.Infrastructure.Data.Configurations
             builder.Property(ci => ci.DateAdded)
                 .IsRequired();
 
-            // Relationships
             builder.HasOne(ci => ci.Cart)
                 .WithMany(c => c.CartItems)
                 .HasForeignKey(ci => ci.CartId)
@@ -33,7 +32,6 @@ namespace Ecommerce.Infrastructure.Data.Configurations
                 .HasForeignKey(ci => ci.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Unique constraint - one product per cart
             builder.HasIndex(ci => new { ci.CartId, ci.ProductId }).IsUnique();
         }
     }

@@ -16,7 +16,6 @@ namespace Ecommerce.Infrastructure.Data.Configurations
                 .IsRequired()
                 .HasMaxLength(50);
 
-            // Relationships
             builder.HasOne(c => c.Customer)
                 .WithMany(c => c.Carts)
                 .HasForeignKey(c => c.CustomerId)

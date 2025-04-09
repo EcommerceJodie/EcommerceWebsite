@@ -50,7 +50,6 @@ namespace Ecommerce.API.Controllers
                 return Unauthorized(new { message = "Mật khẩu không đúng" });
             }
 
-            // Kiểm tra xem người dùng có phải là Admin không
             var roles = await _userManager.GetRolesAsync(user);
             if (!roles.Contains("Admin"))
             {

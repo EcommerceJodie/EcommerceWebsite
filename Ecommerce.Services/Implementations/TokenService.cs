@@ -31,13 +31,11 @@ namespace Ecommerce.Services.Implementations
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             };
 
-            // Thêm thông tin tên đầy đủ nếu có
             if (!string.IsNullOrEmpty(user.FirstName) && !string.IsNullOrEmpty(user.LastName))
             {
                 claims.Add(new Claim("FullName", user.FullName));
             }
 
-            // Thêm roles
             foreach (var role in roles)
             {
                 claims.Add(new Claim(ClaimTypes.Role, role));
