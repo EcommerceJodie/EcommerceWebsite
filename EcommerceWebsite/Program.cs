@@ -1,6 +1,14 @@
+using Ecommerce.Infrastructure.Data;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Thêm DbContext
+builder.Services.AddDatabaseServices(builder.Configuration);
+
+// Thêm các dịch vụ khác
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
