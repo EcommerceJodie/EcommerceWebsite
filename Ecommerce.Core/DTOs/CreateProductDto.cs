@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using Ecommerce.Core.Models.Enums;
+using Microsoft.AspNetCore.Http;
 
 namespace Ecommerce.Core.DTOs
 {
@@ -17,5 +19,9 @@ namespace Ecommerce.Core.DTOs
         public string MetaTitle { get; set; }
         public string MetaDescription { get; set; }
         public Guid CategoryId { get; set; }
+        
+        public List<IFormFile> ProductImages { get; set; } = new List<IFormFile>();
+        
+        public IFormFile MainImage { get; set; }
     }
 } 

@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <UserSecretsId>68f0ebe7-f3e9-43f9-a600-bb2f0efc9c9f</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,8 +27,6 @@
     <ProjectReference Include="..\Ecommerce.Infrastructure\Ecommerce.Infrastructure.csproj" />
     <ProjectReference Include="..\Ecommerce.Services\Ecommerce.Services.csproj" />
     <ProjectReference Include="..\Ecommerce.Shared\Ecommerce.Shared.csproj" />
-    <ProjectReference Include="..\Ecommerce.UnitTests\Ecommerce.UnitTests.csproj" />
-    <ProjectReference Include="..\EcommerceWebsite\Ecommerce.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

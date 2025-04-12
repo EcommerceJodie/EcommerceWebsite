@@ -18,19 +18,16 @@ namespace Ecommerce.Infrastructure.Repositories
             _dbSet = context.Set<T>();
         }
 
-        public IQueryable<T> GetAll()
-        {
-            return _dbSet;
-        }
+        public IQueryable<T> Ts => _dbSet;
 
         public async Task<T> GetByIdAsync(Guid id)
         {
             return await _dbSet.FindAsync(id);
         }
 
-        public async Task AddAsync(T entity)
+        public void Add(T entity)
         {
-            await _dbSet.AddAsync(entity);
+            _dbSet.Add(entity);
         }
 
         public void Update(T entity)

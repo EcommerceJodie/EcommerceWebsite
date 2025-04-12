@@ -14,5 +14,9 @@ namespace Ecommerce.Core.Interfaces.Services
         Task<ProductDto> CreateProductAsync(CreateProductDto productDto);
         Task<ProductDto> UpdateProductAsync(UpdateProductDto productDto);
         Task<bool> DeleteProductAsync(Guid id);
+        
+        Task<ProductImageDto> AddProductImageAsync(Guid productId, AddProductImageDto imageDto);
+        Task<bool> DeleteProductImageAsync(Guid imageId);
+        Task<bool> SetMainProductImageAsync(Guid imageId);
     }
 } 

@@ -1,22 +1,44 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authApiService, LoginRequest } from '../services/api/auth.service';
+import { authStoreService } from '../services/auth-store.service';
 
-const Login = () => {
+interface LoginProps {
+  onLoginSuccess?: () => void;
+}
+
+const Login = ({ onLoginSuccess }: LoginProps) => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<LoginRequest>({
     email: '',
     password: '',
-    rememberMe: false
   });
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Điền email đã lưu (nếu có) khi component được load
+  useEffect(() => {
+    const savedEmail = authStoreService.getRememberedEmail();
+    if (savedEmail) {
+      setFormData(prev => ({ ...prev, email: savedEmail }));
+      setRememberMe(true);
+    }
+    
+    // Xóa phần chuyển hướng tự động ở đây vì nó đã được xử lý trong App.tsx
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    
+    if (type === 'checkbox') {
+      setRememberMe(checked);
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,16 +47,33 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await authApiService.login(formData);
       
-      if (formData.email === 'admin@example.com' && formData.password === 'admin123') {
-        localStorage.setItem('adminUser', JSON.stringify({ email: formData.email, role: 'admin' }));
+      // Kiểm tra xem người dùng có vai trò Admin hay không
+      if (response.roles && response.roles.includes('Admin')) {
+        // Lưu thông tin đăng nhập thông qua service
+        authStoreService.saveUserData(response, rememberMe);
+        
+        // Gọi hàm cập nhật trạng thái xác thực
+        if (onLoginSuccess) {
+          onLoginSuccess();
+        }
+        
+        // Chuyển hướng đến dashboard
         navigate('/dashboard');
       } else {
-        setError('Email hoặc mật khẩu không chính xác');
+        setError('Tài khoản không có quyền truy cập vào trang quản trị');
       }
-    } catch (err) {
-      setError('Có lỗi xảy ra. Vui lòng thử lại sau');
+    } catch (err: any) {
+      // Xử lý lỗi dựa trên mã HTTP
+      if (err.status === 401) {
+        setError('Email hoặc mật khẩu không chính xác');
+      } else if (err.status === 403) {
+        setError('Tài khoản không có quyền truy cập vào trang quản trị');
+      } else {
+        setError('Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại sau.');
+      }
+      console.error('Login error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +148,7 @@ const Login = () => {
               name="rememberMe"
               type="checkbox"
               className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              checked={formData.rememberMe}
+              checked={rememberMe}
               onChange={handleChange}
             />
             <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">

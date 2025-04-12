@@ -61,7 +61,7 @@ namespace Ecommerce.Services.Implementations
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
             var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(jwtSettings["SecretKey"]);
+            var key = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]);
             
             try
             {

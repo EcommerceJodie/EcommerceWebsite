@@ -7,6 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
+using Ecommerce.Shared.Storage.Minio;
+using EcommerceWebsite.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +17,11 @@ builder.Services.AddDatabaseServices(builder.Configuration);
 builder.Services.AddIdentityServices();
 
 builder.Services.AddCookieAuthentication();
+
+// Đăng ký MinioService
+Console.WriteLine("Bắt đầu cấu hình MinioService...");
+builder.Services.AddMinioService(builder.Configuration);
+Console.WriteLine("Đã cấu hình MinioService thành công");
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 
@@ -35,6 +42,9 @@ using (var scope = app.Services.CreateScope())
         logger.LogError(ex, "Lỗi khi seed dữ liệu Identity");
     }
 }
+
+// Sử dụng Global Exception Handler middleware
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

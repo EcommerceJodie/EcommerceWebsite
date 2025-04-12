@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Ecommerce.Core.DTOs;
 using Ecommerce.Core.Interfaces.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,6 +11,7 @@ namespace Ecommerce.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "Admin")]
     public class ProductsController : ControllerBase
     {
         private readonly IProductService _productService;
@@ -64,7 +66,7 @@ namespace Ecommerce.API.Controllers
         [HttpPost]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<ProductDto>> CreateProduct(CreateProductDto createProductDto)
+        public async Task<ActionResult<ProductDto>> CreateProduct([FromForm] CreateProductDto createProductDto)
         {
             if (!ModelState.IsValid)
             {
@@ -84,7 +86,7 @@ namespace Ecommerce.API.Controllers
         {
             if (id != updateProductDto.Id)
             {
-                return BadRequest("ID in the URL does not match ID in the request body");
+                return BadRequest("ID trong đường dẫn không khớp với ID trong dữ liệu");
             }
 
             if (!ModelState.IsValid)
@@ -92,12 +94,7 @@ namespace Ecommerce.API.Controllers
                 return BadRequest(ModelState);
             }
 
-            var updated = await _productService.UpdateProductAsync(updateProductDto);
-            if (updated == null)
-            {
-                return NotFound();
-            }
-
+            await _productService.UpdateProductAsync(updateProductDto);
             return NoContent();
         }
 
@@ -107,12 +104,43 @@ namespace Ecommerce.API.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteProduct(Guid id)
         {
-            var result = await _productService.DeleteProductAsync(id);
-            if (!result)
+            await _productService.DeleteProductAsync(id);
+            return NoContent();
+        }
+        
+        // POST: api/Products/{productId}/Images
+        [HttpPost("{productId}/Images")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<ProductImageDto>> AddProductImage(Guid productId, [FromForm] AddProductImageDto imageDto)
+        {
+            if (!ModelState.IsValid)
             {
-                return NotFound();
+                return BadRequest(ModelState);
             }
-
+            
+            var productImage = await _productService.AddProductImageAsync(productId, imageDto);
+            return CreatedAtAction(nameof(GetProduct), new { id = productId }, productImage);
+        }
+        
+        // DELETE: api/Products/Images/{imageId}
+        [HttpDelete("Images/{imageId}")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteProductImage(Guid imageId)
+        {
+            await _productService.DeleteProductImageAsync(imageId);
+            return NoContent();
+        }
+        
+        // PUT: api/Products/Images/{imageId}/SetMain
+        [HttpPut("Images/{imageId}/SetMain")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> SetMainProductImage(Guid imageId)
+        {
+            await _productService.SetMainProductImageAsync(imageId);
             return NoContent();
         }
     }
