@@ -1,9 +1,10 @@
+import React from 'react';
 import { NavLink } from 'react-router-dom';
 
 interface MenuItem {
   name: string;
   path: string;
-  icon: JSX.Element;
+  icon: React.ReactNode;
 }
 
 const Sidebar = () => {

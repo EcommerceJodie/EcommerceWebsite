@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Authentication;
 using System.Threading.Tasks;
 
 namespace Ecommerce.API.Controllers
@@ -40,23 +41,24 @@ namespace Ecommerce.API.Controllers
             var user = await _userManager.FindByEmailAsync(loginDto.Email);
             if (user == null)
             {
-                return Unauthorized(new { message = "Email không tồn tại" });
+                throw new AuthenticationException("Email không tồn tại");
             }
 
             var result = await _signInManager.CheckPasswordSignInAsync(user, loginDto.Password, false);
 
             if (!result.Succeeded)
             {
-                return Unauthorized(new { message = "Mật khẩu không đúng" });
+                throw new AuthenticationException("Mật khẩu không đúng");
             }
 
             var roles = await _userManager.GetRolesAsync(user);
             if (!roles.Contains("Admin"))
             {
-                return Forbid();
+                throw new UnauthorizedAccessException("Tài khoản không có quyền truy cập trang quản trị");
             }
 
-            return await CreateUserDto(user);
+            var userDto = await CreateUserDto(user);
+            return Ok(userDto);
         }
 
         [HttpGet("me")]
@@ -64,14 +66,27 @@ namespace Ecommerce.API.Controllers
         public async Task<ActionResult<UserDto>> GetCurrentUser()
         {
             var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+            if (string.IsNullOrEmpty(email))
+            {
+                throw new UnauthorizedAccessException("Không tìm thấy thông tin người dùng đăng nhập");
+            }
+            
             var user = await _userManager.FindByEmailAsync(email);
-
             if (user == null)
             {
-                return NotFound();
+                throw new KeyNotFoundException("Không tìm thấy thông tin người dùng");
             }
 
-            return await CreateUserDto(user);
+            var userDto = await CreateUserDto(user);
+            return Ok(userDto);
+        }
+
+        [HttpPost("logout")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Logout()
+        {
+            await _signInManager.SignOutAsync();
+            return Ok(new { message = "Đăng xuất thành công" });
         }
 
         private async Task<UserDto> CreateUserDto(ApplicationUser user)

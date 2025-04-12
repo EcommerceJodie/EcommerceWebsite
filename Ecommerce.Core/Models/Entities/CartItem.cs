@@ -11,5 +11,6 @@ namespace Ecommerce.Core.Models.Entities
         public DateTime DateAdded { get; set; } = DateTime.UtcNow;
         public virtual Cart Cart { get; set; }
         public virtual Product Product { get; set; }
+        //luu vao redis...
     }
 } 

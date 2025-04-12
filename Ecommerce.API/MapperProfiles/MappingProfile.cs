@@ -15,6 +15,14 @@ namespace Ecommerce.API.MapperProfiles
 
             CreateMap<CreateProductDto, Product>();
             CreateMap<UpdateProductDto, Product>();
+            
+            CreateMap<Category, CategoryDto>();
+            CreateMap<CreateCategoryDto, Category>()
+                .ForMember(dest => dest.CategoryImageUrl, 
+                           opt => opt.MapFrom(src => string.IsNullOrEmpty(src.CategoryImageUrl) ? string.Empty : src.CategoryImageUrl));
+            CreateMap<UpdateCategoryDto, Category>()
+                .ForMember(dest => dest.CategoryImageUrl, 
+                           opt => opt.MapFrom(src => string.IsNullOrEmpty(src.CategoryImageUrl) ? string.Empty : src.CategoryImageUrl));
         }
     }
 } 

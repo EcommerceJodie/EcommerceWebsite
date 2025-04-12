@@ -11,6 +11,7 @@ namespace Ecommerce.Infrastructure.Data
         public ApplicationDbContext CreateDbContext(string[] args)
         {
             string projectDir = Directory.GetCurrentDirectory();
+            string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
             
             string[] configPaths = new[] 
             {
@@ -19,13 +20,27 @@ namespace Ecommerce.Infrastructure.Data
                 Path.Combine(projectDir, "..", "EcommerceWebsite", "appsettings.json")
             };
             
+            string[] devConfigPaths = new[] 
+            {
+                Path.Combine(projectDir, $"appsettings.{environment}.json"),
+                Path.Combine(projectDir, "..", "Ecommerce.API", $"appsettings.{environment}.json"),
+                Path.Combine(projectDir, "..", "EcommerceWebsite", $"appsettings.{environment}.json")
+            };
+            
             string configPath = configPaths.FirstOrDefault(File.Exists) 
                 ?? throw new FileNotFoundException("Could not find appsettings.json");
             
-            var configuration = new ConfigurationBuilder()
+            var configBuilder = new ConfigurationBuilder()
                 .SetBasePath(Path.GetDirectoryName(configPath))
-                .AddJsonFile(Path.GetFileName(configPath))
-                .Build();
+                .AddJsonFile(Path.GetFileName(configPath));
+            
+            string devConfigPath = devConfigPaths.FirstOrDefault(File.Exists);
+            if (devConfigPath != null)
+            {
+                configBuilder.AddJsonFile(Path.GetFileName(devConfigPath));
+            }
+            
+            var configuration = configBuilder.Build();
             
             var connectionString = configuration.GetConnectionString("DefaultConnection");
             

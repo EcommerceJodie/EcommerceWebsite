@@ -6,9 +6,9 @@ namespace Ecommerce.Core.Interfaces.Repositories
 {
     public interface IRepository<T> where T : class
     {
-        IQueryable<T> GetAll();
+        IQueryable<T> Ts { get; }
         Task<T> GetByIdAsync(Guid id);
-        Task AddAsync(T entity);
+        void Add(T entity);
         void Update(T entity);
         void Delete(T entity);
         Task SaveChangesAsync();

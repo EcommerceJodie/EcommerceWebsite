@@ -1,17 +1,57 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { authStoreService } from '../../services/auth-store.service';
 
-const Header = () => {
+interface HeaderProps {
+  onLogout?: () => void;
+}
+
+const Header = ({ onLogout }: HeaderProps) => {
+  const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [user, setUser] = useState({
+    name: 'Admin',
+    email: '',
+    avatar: 'https://randomuser.me/api/portraits/men/1.jpg'
+  });
+
+  // Lấy thông tin người dùng khi component được mount
+  useEffect(() => {
+    const currentUser = authStoreService.getCurrentUser();
+    if (currentUser) {
+      setUser({
+        name: currentUser.firstName && currentUser.lastName
+          ? `${currentUser.firstName} ${currentUser.lastName}`
+          : 'Admin',
+        email: currentUser.email,
+        avatar: 'https://randomuser.me/api/portraits/men/1.jpg' // Sử dụng avatar mặc định
+      });
+    }
+  }, []);
 
   const toggleProfile = () => {
     setIsProfileOpen(!isProfileOpen);
   };
 
-  const user = {
-    name: 'Admin User',
-    email: 'admin@example.com',
-    avatar: 'https://randomuser.me/api/portraits/men/1.jpg'
+  const handleLogout = async () => {
+    // Đóng dropdown profile
+    setIsProfileOpen(false);
+    
+    // Gọi hàm onLogout được truyền từ App component (nếu có)
+    if (onLogout) {
+      await onLogout();
+    } else {
+      // Fallback: Đăng xuất người dùng
+      try {
+        await authStoreService.logout();
+        // Chuyển hướng về trang đăng nhập
+        navigate('/login', { replace: true });
+      } catch (error) {
+        console.error('Lỗi khi đăng xuất:', error);
+        // Vẫn chuyển hướng về trang đăng nhập ngay cả khi có lỗi
+        navigate('/login', { replace: true });
+      }
+    }
   };
 
   return (
@@ -67,6 +107,7 @@ const Header = () => {
                   <span className="sr-only">Mở menu người dùng</span>
                   <img className="h-8 w-8 rounded-full" src={user.avatar} alt="" />
                   <span className="ml-2 text-gray-700 hidden md:block">{user.name}</span>
+                  <span className="ml-1 text-xs text-gray-500 hidden md:block">{user.email}</span>
                   <svg className="ml-1 h-5 w-5 text-gray-400 hidden md:block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
@@ -86,9 +127,13 @@ const Header = () => {
                   <Link to="/settings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
                     Cài đặt
                   </Link>
-                  <Link to="/logout" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                  <button 
+                    onClick={handleLogout}
+                    className="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
+                    role="menuitem"
+                  >
                     Đăng xuất
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>
