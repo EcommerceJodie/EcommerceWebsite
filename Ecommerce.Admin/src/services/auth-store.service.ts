@@ -13,8 +13,10 @@ interface StoredUser {
 
 class AuthStoreService {
   private readonly TOKEN_KEY = 'token';
+  private readonly REFRESH_TOKEN_KEY = 'refreshToken';
   private readonly USER_KEY = 'adminUser';
   private readonly EMAIL_KEY = 'adminEmail';
+  private refreshTokenRequest: Promise<void> | null = null;
 
 
   public isAuthenticated(): boolean {
@@ -40,6 +42,7 @@ class AuthStoreService {
  
   public saveUserData(response: UserResponse, rememberMe?: boolean): void {
     this.setToken(response.token);
+    this.setRefreshToken(response.refreshToken);
     
     if (rememberMe) {
       this.setRememberedEmail(response.email);
@@ -66,10 +69,18 @@ class AuthStoreService {
   public getToken(): string | null {
     return localStorage.getItem(this.TOKEN_KEY);
   }
+
+  public getRefreshToken(): string | null {
+    return localStorage.getItem(this.REFRESH_TOKEN_KEY);
+  }
   
 
   private setToken(token: string): void {
     localStorage.setItem(this.TOKEN_KEY, token);
+  }
+
+  private setRefreshToken(refreshToken: string): void {
+    localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
   }
   
 
@@ -95,9 +106,45 @@ class AuthStoreService {
 
   private clearLocalStorageData(): void {
     localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.REFRESH_TOKEN_KEY);
     localStorage.removeItem(this.USER_KEY);
   }
-  
+
+  public async refreshAccessToken(): Promise<boolean> {
+    // Tránh nhiều yêu cầu refresh token cùng lúc
+    if (this.refreshTokenRequest) {
+      await this.refreshTokenRequest;
+      return this.isAuthenticated();
+    }
+
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) {
+      return false;
+    }
+
+    const refreshPromise = new Promise<void>(async (resolve, reject) => {
+      try {
+        const response = await authApiService.refreshToken(refreshToken);
+        this.saveUserData(response);
+        resolve();
+      } catch (error) {
+        console.error('Refresh token error:', error);
+        this.clearLocalStorageData();
+        reject(error);
+      } finally {
+        this.refreshTokenRequest = null;
+      }
+    });
+
+    this.refreshTokenRequest = refreshPromise;
+    
+    try {
+      await refreshPromise;
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   public async logout(): Promise<void> {
     try {

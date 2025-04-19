@@ -136,22 +136,56 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ isEdit = false }) => {
       });
       
       if (isEdit && id) {
-        const result = await categoriesApiService.update(id, { ...formData, id });
-        setDebugInfo({ 
-          lastAction: 'updated', 
-          requestData: { id, ...formData },
-          responseData: result
-        });
+        try {
+          const result = await categoriesApiService.update(id, formData);
+          setDebugInfo({ 
+            lastAction: 'updated', 
+            requestData: { id, ...formData },
+            responseData: result
+          });
+          navigate('/categories');
+        } catch (err: any) {
+          console.error('Chi tiết lỗi cập nhật:', err);
+          if (err.data?.errors) {
+            const errorMessages = Object.entries(err.data.errors)
+              .map(([key, msgs]) => `${key}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+              .join('; ');
+            setError(`Lỗi validation: ${errorMessages}`);
+          } else {
+            setError(err.message || 'Có lỗi xảy ra khi cập nhật danh mục');
+          }
+          setDebugInfo({ 
+            lastAction: 'update_error', 
+            requestData: { id, ...formData },
+            error: err
+          });
+        }
       } else {
-        const result = await categoriesApiService.create(formData);
-        setDebugInfo({ 
-          lastAction: 'created', 
-          requestData: formData,
-          responseData: result
-        });
+        try {
+          const result = await categoriesApiService.create(formData);
+          setDebugInfo({ 
+            lastAction: 'created', 
+            requestData: formData,
+            responseData: result
+          });
+          navigate('/categories');
+        } catch (err: any) {
+          console.error('Chi tiết lỗi tạo mới:', err);
+          if (err.data?.errors) {
+            const errorMessages = Object.entries(err.data.errors)
+              .map(([key, msgs]) => `${key}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+              .join('; ');
+            setError(`Lỗi validation: ${errorMessages}`);
+          } else {
+            setError(err.message || 'Có lỗi xảy ra khi tạo danh mục');
+          }
+          setDebugInfo({ 
+            lastAction: 'create_error', 
+            requestData: formData,
+            error: err
+          });
+        }
       }
-      
-      navigate('/categories');
     } catch (err: any) {
       setDebugInfo({ 
         lastAction: 'submit_error', 

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -7,6 +7,37 @@ console.log('API URL Configuration:', API_URL);
 axios.defaults.baseURL = API_URL;
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 axios.defaults.timeout = 30000; 
+
+// Biến kiểm soát việc đang refresh token hay không
+let isRefreshing = false;
+// Mảng các request đang chờ token mới
+let failedQueue: {
+  resolve: (value: unknown) => void;
+  reject: (reason?: unknown) => void;
+  config: AxiosRequestConfig;
+}[] = [];
+
+// Xử lý hàng đợi request khi refresh token thành công
+const processQueue = (error: AxiosError | null, token: string | null = null) => {
+  failedQueue.forEach(request => {
+    if (error) {
+      request.reject(error);
+    } else if (token) {
+      // Cập nhật token trong request đang chờ
+      if (request.config.headers) {
+        request.config.headers['Authorization'] = `Bearer ${token}`;
+      }
+      request.resolve(axios(request.config));
+    }
+  });
+  
+  failedQueue = [];
+};
+
+// Helper function để lấy token từ localStorage
+const getToken = (): string | null => {
+  return localStorage.getItem('token');
+};
 
 const logFormData = (formData: FormData) => {
   console.log('FormData contents:');
@@ -35,7 +66,7 @@ axios.interceptors.request.use(
       }
     }
     
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -53,15 +84,75 @@ axios.interceptors.response.use(
     console.log('Response data:', response.data);
     return response;
   },
-  (error) => {
+  async (error) => {
     console.error('Response error:', error);
     console.error('Error config URL:', error.config?.url);
     console.error('Error config method:', error.config?.method?.toUpperCase());
+    
+    const originalRequest = error.config;
     
     if (error.response) {
       console.error('Error response status:', error.response.status);
       console.error('Error response data:', error.response.data);
       console.error('Error response headers:', error.response.headers);
+      
+      // Xử lý khi token hết hạn (401)
+      if (error.response.status === 401 && 
+          !originalRequest._retry && 
+          originalRequest.url !== '/api/auth/refresh-token' && 
+          originalRequest.url !== '/api/auth/login') {
+        
+        if (isRefreshing) {
+          // Nếu đang refresh, thêm request vào hàng đợi
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject, config: originalRequest });
+          });
+        }
+        
+        originalRequest._retry = true;
+        isRefreshing = true;
+        
+        try {
+          // Lấy refresh token từ localStorage
+          const refreshToken = localStorage.getItem('refreshToken');
+          if (!refreshToken) {
+            // Không có refresh token, chuyển người dùng về trang đăng nhập
+            window.location.href = '/login';
+            return Promise.reject(error);
+          }
+          
+          // Gọi API refresh token
+          const response = await axios.post('/api/auth/refresh-token', { refreshToken });
+          const { token, refreshToken: newRefreshToken } = response.data;
+          
+          // Lưu token mới vào localStorage
+          localStorage.setItem('token', token);
+          localStorage.setItem('refreshToken', newRefreshToken);
+          
+          // Cập nhật token cho request hiện tại
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          originalRequest.headers['Authorization'] = `Bearer ${token}`;
+          
+          // Xử lý các request trong hàng đợi
+          processQueue(null, token);
+          
+          // Thực hiện lại request ban đầu
+          return axios(originalRequest);
+        } catch (refreshError) {
+          // Xử lý lỗi refresh token
+          processQueue(refreshError as AxiosError, null);
+          
+          // Xóa token và chuyển về trang đăng nhập
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('adminUser');
+          
+          window.location.href = '/login';
+          return Promise.reject(refreshError);
+        } finally {
+          isRefreshing = false;
+        }
+      }
     } else if (error.request) {
       console.error('Error request:', error.request);
     } else {

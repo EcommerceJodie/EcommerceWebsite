@@ -36,6 +36,7 @@ namespace Ecommerce.Infrastructure.Data.Configurations
                 .HasMaxLength(50);
 
             builder.Property(o => o.PaymentTransactionId)
+                .IsRequired(false)
                 .HasMaxLength(100);
 
             builder.Property(o => o.Notes)

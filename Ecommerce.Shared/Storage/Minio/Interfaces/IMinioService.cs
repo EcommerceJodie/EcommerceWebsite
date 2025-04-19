@@ -11,6 +11,8 @@ namespace Ecommerce.Shared.Storage.Minio.Interfaces
         
         Task<string> GeneratePresignedUploadUrlAsync(string objectName, int? expiryMinutes = null);
         
+        Task<string> GeneratePresignedDownloadUrlAsync(string objectName, int? expiryMinutes = null);
+        
         Task<bool> RemoveFileAsync(string objectName);
         
         Task<string> GetFileUrlAsync(string objectName);
@@ -18,5 +20,7 @@ namespace Ecommerce.Shared.Storage.Minio.Interfaces
         Task<string> UploadStreamAsync(Stream stream, string objectName, string contentType);
         
         bool IsMinioConnectionActive();
+        
+        Task<bool> ReapplyBucketPolicyAsync();
     }
 } 

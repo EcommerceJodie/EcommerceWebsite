@@ -1,248 +1,304 @@
 using System;
 using System.Collections.Generic;
-using System.Security.Authentication;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Ecommerce.API.Controllers;
 using Ecommerce.Core.DTOs.Identity;
+using Ecommerce.Core.Interfaces.Services;
 using Ecommerce.Core.Models.Entities;
-using Ecommerce.Services.Interfaces;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Xunit;
-using SignInResult = Microsoft.AspNetCore.Identity.SignInResult;
 
 namespace Ecommerce.UnitTests.Controllers
 {
     public class AuthControllerTests
     {
-        private readonly Mock<UserManager<ApplicationUser>> _userManagerMock;
-        private readonly Mock<SignInManager<ApplicationUser>> _signInManagerMock;
-        private readonly Mock<ITokenService> _tokenServiceMock;
+        private readonly Mock<ITokenService> _mockTokenService;
+        private readonly Mock<UserManager<ApplicationUser>> _mockUserManager;
+        private readonly Mock<SignInManager<ApplicationUser>> _mockSignInManager;
         private readonly AuthController _controller;
 
         public AuthControllerTests()
         {
+            _mockTokenService = new Mock<ITokenService>();
+            
             var userStoreMock = new Mock<IUserStore<ApplicationUser>>();
-            _userManagerMock = new Mock<UserManager<ApplicationUser>>(
+            _mockUserManager = new Mock<UserManager<ApplicationUser>>(
                 userStoreMock.Object, null, null, null, null, null, null, null, null);
-
-            var contextAccessorMock = new Mock<IHttpContextAccessor>();
-            var userPrincipalFactoryMock = new Mock<IUserClaimsPrincipalFactory<ApplicationUser>>();
-            _signInManagerMock = new Mock<SignInManager<ApplicationUser>>(
-                _userManagerMock.Object, contextAccessorMock.Object, userPrincipalFactoryMock.Object, null, null, null, null);
-
-            _tokenServiceMock = new Mock<ITokenService>();
-
+            
+            _mockSignInManager = new Mock<SignInManager<ApplicationUser>>(
+                _mockUserManager.Object, 
+                new Mock<IHttpContextAccessor>().Object,
+                new Mock<IUserClaimsPrincipalFactory<ApplicationUser>>().Object,
+                null, null, null, null);
+            
             _controller = new AuthController(
-                _userManagerMock.Object,
-                _signInManagerMock.Object,
-                _tokenServiceMock.Object);
-
-            // Thiết lập ClaimsPrincipal cho controller
-            var user = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
-            {
-                new Claim(ClaimTypes.Email, "admin@example.com"),
-                new Claim(ClaimTypes.Role, "Admin")
-            }));
-
-            _controller.ControllerContext = new ControllerContext
-            {
-                HttpContext = new DefaultHttpContext { User = user }
-            };
+                _mockUserManager.Object,
+                _mockSignInManager.Object,
+                _mockTokenService.Object);
         }
 
         [Fact]
-        public async Task Login_ShouldReturnUserDto_WhenCredentialsAreValid()
+        public async Task Login_WithValidCredentials_ShouldReturnOkResult_WithToken()
         {
-            // Arrange
+
             var loginDto = new LoginDto
             {
-                Email = "admin@example.com",
-                Password = "Password123!"
+                Email = "test@example.com",
+                Password = "Test123!"
             };
 
             var user = new ApplicationUser
             {
-                Id = "userId",
-                Email = "admin@example.com",
-                FirstName = "Admin",
+                Id = Guid.NewGuid().ToString(),
+                Email = loginDto.Email,
+                UserName = loginDto.Email,
+                FirstName = "Test",
                 LastName = "User"
             };
 
-            var roles = new List<string> { "Admin" };
-            var token = "jwt-token";
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Token = "test-jwt-token",
+                Roles = new List<string> { "Admin" },
+                CreatedAt = DateTime.UtcNow
+            };
 
-            _userManagerMock.Setup(um => um.FindByEmailAsync(loginDto.Email))
+            _mockUserManager.Setup(x => x.FindByEmailAsync(loginDto.Email))
                 .ReturnsAsync(user);
+            
+            _mockSignInManager.Setup(x => x.CheckPasswordSignInAsync(user, loginDto.Password, false))
+                .ReturnsAsync(Microsoft.AspNetCore.Identity.SignInResult.Success);
+            
+            _mockUserManager.Setup(x => x.GetRolesAsync(user))
+                .ReturnsAsync(new List<string> { "Admin" });
+            
+            _mockTokenService.Setup(x => x.CreateTokenAsync(user, new List<string> { "Admin" }))
+                .ReturnsAsync((userDto.Token, "refresh-token"));
 
-            _signInManagerMock.Setup(sm => sm.CheckPasswordSignInAsync(user, loginDto.Password, false))
-                .ReturnsAsync(SignInResult.Success);
 
-            _userManagerMock.Setup(um => um.GetRolesAsync(user))
-                .ReturnsAsync(roles);
-
-            _tokenServiceMock.Setup(ts => ts.CreateTokenAsync(user, roles))
-                .ReturnsAsync(token);
-
-            // Act
             var result = await _controller.Login(loginDto);
 
-            // Assert
+
             var okResult = result.Result as OkObjectResult;
             okResult.Should().NotBeNull();
-
-            var returnedUserDto = okResult.Value as UserDto;
-            returnedUserDto.Should().NotBeNull();
-            returnedUserDto.Email.Should().Be(user.Email);
-            returnedUserDto.Token.Should().Be(token);
-            returnedUserDto.Roles.Should().BeEquivalentTo(roles);
+            okResult.StatusCode.Should().Be(StatusCodes.Status200OK);
+            
+            var returnedUser = okResult.Value as UserDto;
+            returnedUser.Should().NotBeNull();
+            returnedUser.Email.Should().Be(user.Email);
+            returnedUser.Token.Should().Be(userDto.Token);
         }
 
         [Fact]
-        public async Task Login_ShouldThrowAuthenticationException_WhenEmailDoesNotExist()
+        public async Task Login_WithInvalidEmail_ShouldReturnUnauthorized()
         {
-            // Arrange
+
             var loginDto = new LoginDto
             {
-                Email = "nonexistent@example.com",
-                Password = "Password123!"
+                Email = "test@example.com",
+                Password = "Test123!"
             };
 
-            _userManagerMock.Setup(um => um.FindByEmailAsync(loginDto.Email))
+            _mockUserManager.Setup(x => x.FindByEmailAsync(loginDto.Email))
                 .ReturnsAsync((ApplicationUser)null);
 
-            // Act & Assert
-            await Assert.ThrowsAsync<AuthenticationException>(() => _controller.Login(loginDto));
+
+            await Assert.ThrowsAsync<System.Security.Authentication.AuthenticationException>(() => 
+                _controller.Login(loginDto));
         }
 
         [Fact]
-        public async Task Login_ShouldThrowAuthenticationException_WhenPasswordIsIncorrect()
+        public async Task Login_WithInvalidPassword_ShouldReturnUnauthorized()
         {
-            // Arrange
+
             var loginDto = new LoginDto
             {
-                Email = "admin@example.com",
-                Password = "WrongPassword"
+                Email = "test@example.com",
+                Password = "WrongPassword!"
             };
 
             var user = new ApplicationUser
             {
-                Id = "userId",
-                Email = "admin@example.com"
+                Id = Guid.NewGuid().ToString(),
+                Email = loginDto.Email,
+                UserName = loginDto.Email
             };
 
-            _userManagerMock.Setup(um => um.FindByEmailAsync(loginDto.Email))
+            _mockUserManager.Setup(x => x.FindByEmailAsync(loginDto.Email))
                 .ReturnsAsync(user);
+            
+            _mockSignInManager.Setup(x => x.CheckPasswordSignInAsync(user, loginDto.Password, false))
+                .ReturnsAsync(Microsoft.AspNetCore.Identity.SignInResult.Failed);
 
-            _signInManagerMock.Setup(sm => sm.CheckPasswordSignInAsync(user, loginDto.Password, false))
-                .ReturnsAsync(SignInResult.Failed);
 
-            // Act & Assert
-            await Assert.ThrowsAsync<AuthenticationException>(() => _controller.Login(loginDto));
+            await Assert.ThrowsAsync<System.Security.Authentication.AuthenticationException>(() =>
+                _controller.Login(loginDto));
         }
 
         [Fact]
-        public async Task Login_ShouldThrowUnauthorizedAccessException_WhenUserIsNotAdmin()
+        public async Task RefreshToken_WithValidToken_ShouldReturnOkResult_WithNewToken()
         {
-            // Arrange
-            var loginDto = new LoginDto
+
+            var refreshTokenDto = new RefreshTokenDto
             {
-                Email = "user@example.com",
-                Password = "Password123!"
+                RefreshToken = "old-refresh-token"
             };
 
+            var userId = "user-id";
             var user = new ApplicationUser
             {
-                Id = "userId",
-                Email = "user@example.com"
-            };
-
-            var roles = new List<string> { "User" };
-
-            _userManagerMock.Setup(um => um.FindByEmailAsync(loginDto.Email))
-                .ReturnsAsync(user);
-
-            _signInManagerMock.Setup(sm => sm.CheckPasswordSignInAsync(user, loginDto.Password, false))
-                .ReturnsAsync(SignInResult.Success);
-
-            _userManagerMock.Setup(um => um.GetRolesAsync(user))
-                .ReturnsAsync(roles);
-
-            // Act & Assert
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.Login(loginDto));
-        }
-
-        [Fact]
-        public async Task GetCurrentUser_ShouldReturnUserDto_WhenUserIsLoggedIn()
-        {
-            // Arrange
-            var email = "admin@example.com";
-            var user = new ApplicationUser
-            {
-                Id = "userId",
-                Email = email,
-                FirstName = "Admin",
+                Id = userId,
+                Email = "test@example.com",
+                UserName = "test@example.com",
+                FirstName = "Test",
                 LastName = "User"
             };
 
-            var roles = new List<string> { "Admin" };
-            var token = "jwt-token";
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                Token = "new-jwt-token",
+                RefreshToken = "new-refresh-token",
+                Roles = new List<string> { "Admin" },
+                CreatedAt = DateTime.UtcNow
+            };
 
-            _userManagerMock.Setup(um => um.FindByEmailAsync(email))
+            _mockTokenService.Setup(x => x.GetUserIdFromRefreshTokenAsync(refreshTokenDto.RefreshToken))
+                .ReturnsAsync(userId);
+            
+            _mockTokenService.Setup(x => x.ValidateRefreshTokenAsync(userId, refreshTokenDto.RefreshToken))
+                .ReturnsAsync(true);
+            
+            _mockUserManager.Setup(x => x.FindByIdAsync(userId))
                 .ReturnsAsync(user);
+            
+            _mockUserManager.Setup(x => x.GetRolesAsync(user))
+                .ReturnsAsync(new List<string> { "Admin" });
+            
+            _mockTokenService.Setup(x => x.CreateTokenAsync(user, new List<string> { "Admin" }))
+                .ReturnsAsync((userDto.Token, userDto.RefreshToken));
 
-            _userManagerMock.Setup(um => um.GetRolesAsync(user))
-                .ReturnsAsync(roles);
 
-            _tokenServiceMock.Setup(ts => ts.CreateTokenAsync(user, roles))
-                .ReturnsAsync(token);
+            var result = await _controller.RefreshToken(refreshTokenDto);
 
-            // Act
-            var result = await _controller.GetCurrentUser();
 
-            // Assert
             var okResult = result.Result as OkObjectResult;
             okResult.Should().NotBeNull();
-
-            var returnedUserDto = okResult.Value as UserDto;
-            returnedUserDto.Should().NotBeNull();
-            returnedUserDto.Email.Should().Be(email);
-            returnedUserDto.Token.Should().Be(token);
+            okResult.StatusCode.Should().Be(StatusCodes.Status200OK);
+            
+            var returnedUser = okResult.Value as UserDto;
+            returnedUser.Should().NotBeNull();
+            returnedUser.Token.Should().Be(userDto.Token);
+            returnedUser.RefreshToken.Should().Be(userDto.RefreshToken);
         }
 
         [Fact]
-        public async Task GetCurrentUser_ShouldThrowKeyNotFoundException_WhenUserDoesNotExist()
+        public async Task RefreshToken_WithInvalidToken_ShouldThrowAuthenticationException()
         {
-            // Arrange
-            _userManagerMock.Setup(um => um.FindByEmailAsync(It.IsAny<string>()))
+
+            var refreshTokenDto = new RefreshTokenDto
+            {
+                RefreshToken = "invalid-refresh-token"
+            };
+
+            _mockTokenService.Setup(x => x.GetUserIdFromRefreshTokenAsync(refreshTokenDto.RefreshToken))
+                .ReturnsAsync((string)null);
+
+
+            await Assert.ThrowsAsync<System.Security.Authentication.AuthenticationException>(() =>
+                _controller.RefreshToken(refreshTokenDto));
+        }
+
+        [Fact]
+        public async Task RefreshToken_WithExpiredToken_ShouldThrowAuthenticationException()
+        {
+
+            var refreshTokenDto = new RefreshTokenDto
+            {
+                RefreshToken = "expired-refresh-token"
+            };
+
+            var userId = "user-id";
+
+            _mockTokenService.Setup(x => x.GetUserIdFromRefreshTokenAsync(refreshTokenDto.RefreshToken))
+                .ReturnsAsync(userId);
+            
+            _mockTokenService.Setup(x => x.ValidateRefreshTokenAsync(userId, refreshTokenDto.RefreshToken))
+                .ReturnsAsync(false);
+
+
+            await Assert.ThrowsAsync<System.Security.Authentication.AuthenticationException>(() =>
+                _controller.RefreshToken(refreshTokenDto));
+        }
+
+        [Fact]
+        public async Task RefreshToken_WithNonExistentUser_ShouldThrowKeyNotFoundException()
+        {
+
+            var refreshTokenDto = new RefreshTokenDto
+            {
+                RefreshToken = "valid-refresh-token"
+            };
+
+            var userId = "non-existent-user-id";
+
+            _mockTokenService.Setup(x => x.GetUserIdFromRefreshTokenAsync(refreshTokenDto.RefreshToken))
+                .ReturnsAsync(userId);
+            
+            _mockTokenService.Setup(x => x.ValidateRefreshTokenAsync(userId, refreshTokenDto.RefreshToken))
+                .ReturnsAsync(true);
+            
+            _mockUserManager.Setup(x => x.FindByIdAsync(userId))
                 .ReturnsAsync((ApplicationUser)null);
 
-            // Act & Assert
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => _controller.GetCurrentUser());
+
+            await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+                _controller.RefreshToken(refreshTokenDto));
         }
 
         [Fact]
-        public async Task Logout_ShouldReturnOkResult()
+        public async Task RefreshToken_WithUserLackingAdminRole_ShouldThrowUnauthorizedAccessException()
         {
-            // Arrange
-            _signInManagerMock.Setup(sm => sm.SignOutAsync())
-                .Returns(Task.CompletedTask);
 
-            // Act
-            var result = await _controller.Logout();
+            var refreshTokenDto = new RefreshTokenDto
+            {
+                RefreshToken = "valid-refresh-token"
+            };
 
-            // Assert
-            var okResult = result as OkObjectResult;
-            okResult.Should().NotBeNull();
-            okResult.StatusCode.Should().Be(200);
+            var userId = "user-id";
+            var user = new ApplicationUser
+            {
+                Id = userId,
+                Email = "test@example.com",
+                UserName = "test@example.com"
+            };
+
+            _mockTokenService.Setup(x => x.GetUserIdFromRefreshTokenAsync(refreshTokenDto.RefreshToken))
+                .ReturnsAsync(userId);
             
-            dynamic response = okResult.Value;
-            string message = response.GetType().GetProperty("message").GetValue(response, null);
-            Assert.Equal("Đăng xuất thành công", message);
+            _mockTokenService.Setup(x => x.ValidateRefreshTokenAsync(userId, refreshTokenDto.RefreshToken))
+                .ReturnsAsync(true);
+            
+            _mockUserManager.Setup(x => x.FindByIdAsync(userId))
+                .ReturnsAsync(user);
+            
+            _mockUserManager.Setup(x => x.GetRolesAsync(user))
+                .ReturnsAsync(new List<string> { "Customer" });
+
+
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                _controller.RefreshToken(refreshTokenDto));
         }
     }
-} 
+}

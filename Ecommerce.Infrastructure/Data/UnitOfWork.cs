@@ -38,8 +38,18 @@ namespace Ecommerce.Infrastructure.Data
             return await _context.SaveChangesAsync();
         }
 
+        public bool HasActiveTransaction()
+        {
+            return _transaction != null;
+        }
+
         public async Task BeginTransactionAsync()
         {
+            if (_transaction != null)
+            {
+                return; 
+            }
+            
             _transaction = await _context.Database.BeginTransactionAsync();
         }
 
@@ -47,12 +57,20 @@ namespace Ecommerce.Infrastructure.Data
         {
             try
             {
+                if (_transaction == null)
+                {
+                    return; 
+                }
+                
                 await _transaction.CommitAsync();
             }
             finally
             {
-                await _transaction.DisposeAsync();
-                _transaction = null;
+                if (_transaction != null)
+                {
+                    await _transaction.DisposeAsync();
+                    _transaction = null;
+                }
             }
         }
 
@@ -60,12 +78,20 @@ namespace Ecommerce.Infrastructure.Data
         {
             try
             {
+                if (_transaction == null)
+                {
+                    return; 
+                }
+                
                 await _transaction.RollbackAsync();
             }
             finally
             {
-                await _transaction.DisposeAsync();
-                _transaction = null;
+                if (_transaction != null)
+                {
+                    await _transaction.DisposeAsync();
+                    _transaction = null;
+                }
             }
         }
 

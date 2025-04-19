@@ -21,19 +21,57 @@ namespace Ecommerce.API.Controllers
             _productService = productService;
         }
 
-        // GET: api/Products
+
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<ActionResult<IEnumerable<ProductDto>>> GetProducts()
+        [AllowAnonymous]
+        public async Task<ActionResult<PagedResultDto<ProductDto>>> GetProducts(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string sortBy = "createdAt",
+            [FromQuery] bool sortDesc = true,
+            [FromQuery] string searchTerm = "",
+            [FromQuery] Guid? categoryId = null,
+            [FromQuery] decimal? minPrice = null,
+            [FromQuery] decimal? maxPrice = null,
+            [FromQuery] bool? isFeatured = null,
+            [FromQuery] bool? inStock = null,
+            [FromQuery] string status = null)
+        {
+            var queryDto = new ProductQueryDto
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                SortBy = sortBy,
+                SortDesc = sortDesc,
+                SearchTerm = searchTerm,
+                CategoryId = categoryId,
+                MinPrice = minPrice,
+                MaxPrice = maxPrice,
+                IsFeatured = isFeatured,
+                InStock = inStock,
+                Status = status
+            };
+            
+            var products = await _productService.GetPagedProductsAsync(queryDto);
+            return Ok(products);
+        }
+
+
+        [HttpGet("all")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<ProductDto>>> GetAllProducts()
         {
             var products = await _productService.GetAllProductsAsync();
             return Ok(products);
         }
 
-        // GET: api/Products/5
+
         [HttpGet("{id}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [AllowAnonymous]
         public async Task<ActionResult<ProductDto>> GetProduct(Guid id)
         {
             var product = await _productService.GetProductByIdAsync(id);
@@ -44,28 +82,78 @@ namespace Ecommerce.API.Controllers
             return Ok(product);
         }
 
-        // GET: api/Products/Category/5
+
         [HttpGet("Category/{categoryId}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<ActionResult<IEnumerable<ProductDto>>> GetProductsByCategory(Guid categoryId)
+        [AllowAnonymous]
+        public async Task<ActionResult<PagedResultDto<ProductDto>>> GetProductsByCategory(
+            Guid categoryId, 
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string sortBy = "createdAt",
+            [FromQuery] bool sortDesc = true,
+            [FromQuery] string searchTerm = "")
+        {
+            var pagination = new PaginationRequestDto
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                SortBy = sortBy,
+                SortDesc = sortDesc,
+                SearchTerm = searchTerm
+            };
+            
+            var products = await _productService.GetProductsByCategoryAsync(categoryId, pagination);
+            return Ok(products);
+        }
+
+
+        [HttpGet("Category/{categoryId}/all")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [AllowAnonymous]
+        public async Task<ActionResult<IEnumerable<ProductDto>>> GetAllProductsByCategory(Guid categoryId)
         {
             var products = await _productService.GetProductsByCategoryAsync(categoryId);
             return Ok(products);
         }
 
-        // GET: api/Products/Featured
+
         [HttpGet("Featured")]
         [ProducesResponseType(StatusCodes.Status200OK)]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ProductDto>>> GetFeaturedProducts()
         {
             var products = await _productService.GetFeaturedProductsAsync();
             return Ok(products);
         }
 
-        // POST: api/Products
+
+        [HttpGet("Images/{imageId}/presigned-url")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [AllowAnonymous]
+        public async Task<ActionResult<string>> GetProductImagePresignedUrl(Guid imageId, [FromQuery] int expiryMinutes = 30)
+        {
+            var presignedUrl = await _productService.GetProductImagePresignedUrlAsync(imageId, expiryMinutes);
+            return Ok(new { url = presignedUrl });
+        }
+        
+
+        [HttpGet("{productId}/main-image-url")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [AllowAnonymous]
+        public async Task<ActionResult<string>> GetProductMainImagePresignedUrl(Guid productId, [FromQuery] int expiryMinutes = 30)
+        {
+            var presignedUrl = await _productService.GetProductMainImagePresignedUrlAsync(productId, expiryMinutes);
+            return Ok(new { url = presignedUrl });
+        }
+
+
         [HttpPost]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [Consumes("multipart/form-data")]
         public async Task<ActionResult<ProductDto>> CreateProduct([FromForm] CreateProductDto createProductDto)
         {
             if (!ModelState.IsValid)
@@ -77,12 +165,13 @@ namespace Ecommerce.API.Controllers
             return CreatedAtAction(nameof(GetProduct), new { id = createdProduct.Id }, createdProduct);
         }
 
-        // PUT: api/Products/5
+
         [HttpPut("{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateProduct(Guid id, UpdateProductDto updateProductDto)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateProduct(Guid id, [FromForm] UpdateProductDto updateProductDto)
         {
             if (id != updateProductDto.Id)
             {
@@ -98,7 +187,7 @@ namespace Ecommerce.API.Controllers
             return NoContent();
         }
 
-        // DELETE: api/Products/5
+
         [HttpDelete("{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -108,11 +197,12 @@ namespace Ecommerce.API.Controllers
             return NoContent();
         }
         
-        // POST: api/Products/{productId}/Images
+
         [HttpPost("{productId}/Images")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [Consumes("multipart/form-data")]
         public async Task<ActionResult<ProductImageDto>> AddProductImage(Guid productId, [FromForm] AddProductImageDto imageDto)
         {
             if (!ModelState.IsValid)
@@ -124,7 +214,7 @@ namespace Ecommerce.API.Controllers
             return CreatedAtAction(nameof(GetProduct), new { id = productId }, productImage);
         }
         
-        // DELETE: api/Products/Images/{imageId}
+
         [HttpDelete("Images/{imageId}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -134,7 +224,7 @@ namespace Ecommerce.API.Controllers
             return NoContent();
         }
         
-        // PUT: api/Products/Images/{imageId}/SetMain
+
         [HttpPut("Images/{imageId}/SetMain")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

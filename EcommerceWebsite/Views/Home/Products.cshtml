@@ -1,0 +1,232 @@
+@model Ecommerce.Core.DTOs.PagedResultDto<Ecommerce.Core.DTOs.ProductDto>
+
+@{
+    ViewData["Title"] = "Danh sách sản phẩm";
+}
+
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/">Trang chủ</a></li>
+                    <li class="breadcrumb-item active">Sản phẩm</li>
+                    @if (ViewBag.CategoryId != null)
+                    {
+                        var categories = ViewBag.Categories as IEnumerable<dynamic>;
+                        if (categories != null)
+                        {
+                            var category = categories.FirstOrDefault(c => c.Id.ToString() == ViewBag.CategoryId.ToString());
+                            if (category != null)
+                            {
+                                <li class="breadcrumb-item active">@category.CategoryName</li>
+                            }
+                        }
+                    }
+                </ol>
+            </nav>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Sidebar Filters -->
+        <div class="col-md-3 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Bộ lọc sản phẩm</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" action="/Home/Products">
+                        <div class="mb-3">
+                            <label for="searchTerm" class="form-label">Tìm kiếm</label>
+                            <input type="text" class="form-control" id="searchTerm" name="searchTerm" 
+                                   value="@ViewBag.SearchTerm" placeholder="Tên sản phẩm...">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="categoryId" class="form-label">Danh mục</label>
+                            <select class="form-select" id="categoryId" name="categoryId">
+                                <option value="">Tất cả danh mục</option>
+                                @foreach (var category in ViewBag.Categories)
+                                {
+                                    bool selected = ViewBag.CategoryId != null && ViewBag.CategoryId.ToString() == category.Id.ToString();
+                                    if (selected)
+                                    {
+                                        <option value="@category.Id" selected="selected">
+                                            @category.CategoryName
+                                        </option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@category.Id">
+                                            @category.CategoryName
+                                        </option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="sortBy" class="form-label">Sắp xếp theo</label>
+                            <select class="form-select" id="sortBy" name="sortBy">
+                                @{
+                                    bool createdAtSelected = ViewBag.SortBy == "createdAt";
+                                    bool priceSelected = ViewBag.SortBy == "price";
+                                    bool nameSelected = ViewBag.SortBy == "name";
+                                }
+                                
+                                @if (createdAtSelected)
+                                {
+                                    <option value="createdAt" selected="selected">Mới nhất</option>
+                                }
+                                else
+                                {
+                                    <option value="createdAt">Mới nhất</option>
+                                }
+                                
+                                @if (priceSelected)
+                                {
+                                    <option value="price" selected="selected">Giá</option>
+                                }
+                                else
+                                {
+                                    <option value="price">Giá</option>
+                                }
+                                
+                                @if (nameSelected)
+                                {
+                                    <option value="name" selected="selected">Tên sản phẩm</option>
+                                }
+                                else
+                                {
+                                    <option value="name">Tên sản phẩm</option>
+                                }
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                @if (ViewBag.SortDesc)
+                                {
+                                    <input class="form-check-input" type="checkbox" id="sortDesc" name="sortDesc" value="true" checked>
+                                }
+                                else
+                                {
+                                    <input class="form-check-input" type="checkbox" id="sortDesc" name="sortDesc" value="true">
+                                }
+                                <label class="form-check-label" for="sortDesc">
+                                    Sắp xếp giảm dần
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-filter"></i> Lọc sản phẩm
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Product List -->
+        <div class="col-md-9">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h1 class="h3">@ViewData["Title"]</h1>
+                <div class="view-options">
+                    <div class="btn-group" role="group">
+                        @{
+                            string sortIcon = ViewBag.SortDesc ? "down" : "up";
+                            var routeValues = new { 
+                                sortBy = ViewBag.SortBy, 
+                                sortDesc = !ViewBag.SortDesc, 
+                                categoryId = ViewBag.CategoryId, 
+                                searchTerm = ViewBag.SearchTerm 
+                            };
+                        }
+                        <a href="@Url.Action("Products", "Home", routeValues)" 
+                           class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-sort-@sortIcon"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            @if (!string.IsNullOrEmpty(ViewBag.SearchTerm))
+            {
+                <div class="alert alert-info mb-3">
+                    Kết quả tìm kiếm cho: <strong>@ViewBag.SearchTerm</strong>
+                    @{
+                        var clearSearchRouteValues = new { 
+                            sortBy = ViewBag.SortBy, 
+                            sortDesc = ViewBag.SortDesc, 
+                            categoryId = ViewBag.CategoryId 
+                        };
+                    }
+                    <a href="@Url.Action("Products", "Home", clearSearchRouteValues)" 
+                       class="float-end">
+                        <i class="bi bi-x-circle"></i> Xóa tìm kiếm
+                    </a>
+                </div>
+            }
+            
+            @if (Model.Items.Any())
+            {
+                <div class="row">
+                    @foreach (var product in Model.Items)
+                    {
+                        <div class="col-md-4 col-6 mb-4">
+                            <partial name="_ProductCard" model="product" />
+                        </div>
+                    }
+                </div>
+                
+                <partial name="_Pagination" />
+            }
+            else
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Không tìm thấy sản phẩm nào phù hợp với tiêu chí tìm kiếm.
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .breadcrumb {
+        background-color: #f8f9fa;
+        padding: 10px 15px;
+        border-radius: 4px;
+    }
+    
+    .card-header {
+        background-color: #e61a23 !important;
+    }
+    
+    .btn-primary {
+        background-color: #e61a23;
+        border-color: #e61a23;
+    }
+    
+    .btn-primary:hover {
+        background-color: #c41016;
+        border-color: #c41016;
+    }
+    
+    .page-item.active .page-link {
+        background-color: #e61a23;
+        border-color: #e61a23;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('.add-to-cart').click(function(e) {
+                e.preventDefault();
+                var productId = $(this).data('product-id');
+            });
+        });
+    </script>
+} 

@@ -1,374 +1,503 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using AutoMapper;
 using Ecommerce.Core.DTOs;
+using Ecommerce.Core.Exceptions;
 using Ecommerce.Core.Interfaces.Repositories;
 using Ecommerce.Core.Models.Entities;
+using Ecommerce.Core.Models.Enums;
+using Ecommerce.Core.Validators.ProductValidators;
 using Ecommerce.Services.Implementations;
+using Ecommerce.Shared.Storage.Minio.Interfaces;
 using FluentAssertions;
+using FluentValidation;
+using FluentValidation.Results;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
 
 namespace Ecommerce.UnitTests.Services
 {
-    // Mock class for ProductService that overrides EF Core specific methods
-    public class TestableProductService : ProductService
-    {
-        public TestableProductService(IUnitOfWork unitOfWork, IMapper mapper) 
-            : base(unitOfWork, mapper)
-        {
-        }
-
-        protected override Task<List<Product>> GetProductsAsync(IQueryable<Product> query)
-        {
-            return Task.FromResult(query.ToList());
-        }
-    }
-
     public class ProductServiceTests
     {
-        private readonly Mock<IUnitOfWork> _unitOfWorkMock;
-        private readonly Mock<IRepository<Product>> _productRepositoryMock;
-        private readonly Mock<IMapper> _mapperMock;
-        private ProductService _productService;
+        private readonly Mock<IProductRepository> _mockProductRepository;
+        private readonly Mock<ICategoryRepository> _mockCategoryRepository;
+        private readonly Mock<IUnitOfWork> _mockUnitOfWork;
+        private readonly Mock<IMapper> _mockMapper;
+        private readonly Mock<IValidator<CreateProductDto>> _mockCreateValidator;
+        private readonly Mock<IValidator<UpdateProductDto>> _mockUpdateValidator;
+        private readonly Mock<IMinioService> _mockMinioService;
+        private readonly ProductService _productService;
 
         public ProductServiceTests()
         {
-            _unitOfWorkMock = new Mock<IUnitOfWork>();
-            _productRepositoryMock = new Mock<IRepository<Product>>();
-            _mapperMock = new Mock<IMapper>();
+            _mockProductRepository = new Mock<IProductRepository>();
+            _mockCategoryRepository = new Mock<ICategoryRepository>();
+            _mockUnitOfWork = new Mock<IUnitOfWork>();
+            _mockMapper = new Mock<IMapper>();
+            _mockCreateValidator = new Mock<IValidator<CreateProductDto>>();
+            _mockUpdateValidator = new Mock<IValidator<UpdateProductDto>>();
+            _mockMinioService = new Mock<IMinioService>();
 
-            _unitOfWorkMock.Setup(uow => uow.Repository<Product>())
-                .Returns(_productRepositoryMock.Object);
-
-            _productService = new TestableProductService(_unitOfWorkMock.Object, _mapperMock.Object);
+            _productService = new ProductService(
+                _mockProductRepository.Object,
+                _mockUnitOfWork.Object,
+                _mockMapper.Object,
+                _mockMinioService.Object,
+                _mockCreateValidator.Object,
+                _mockUpdateValidator.Object);
         }
 
         [Fact]
-        public async Task GetAllProductsAsync_ShouldReturnAllProducts()
+        public async Task GetAllProductsAsync_ShouldReturnAllActiveProducts()
         {
-            // Arrange
-            var products = new List<Product>
+
+            var productsQueryable = new List<Product>
             {
-                new Product { Id = Guid.NewGuid(), ProductName = "Product 1", CategoryId = Guid.NewGuid() },
-                new Product { Id = Guid.NewGuid(), ProductName = "Product 2", CategoryId = Guid.NewGuid() }
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 1", ProductStatus = ProductStatus.Active, IsDeleted = false },
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 2", ProductStatus = ProductStatus.Active, IsDeleted = false },
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 3", ProductStatus = ProductStatus.Inactive, IsDeleted = false },
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 4", ProductStatus = ProductStatus.Active, IsDeleted = true }
+            }.AsQueryable();
+
+            var mockDbSet = new Mock<DbSet<Product>>();
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.Provider).Returns(productsQueryable.Provider);
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.Expression).Returns(productsQueryable.Expression);
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.ElementType).Returns(productsQueryable.ElementType);
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.GetEnumerator()).Returns(() => productsQueryable.GetEnumerator());
+
+            _mockProductRepository.Setup(x => x.Ts).Returns(mockDbSet.Object);
+
+            var expectedProducts = new List<ProductDto>
+            {
+                new ProductDto { Id = productsQueryable.ElementAt(0).Id, ProductName = "Product 1" },
+                new ProductDto { Id = productsQueryable.ElementAt(1).Id, ProductName = "Product 2" }
             };
 
-            var productDtos = new List<ProductDto>
-            {
-                new ProductDto { Id = products[0].Id, ProductName = "Product 1" },
-                new ProductDto { Id = products[1].Id, ProductName = "Product 2" }
-            };
+            _mockMapper.Setup(x => x.Map<List<ProductDto>>(It.IsAny<List<Product>>()))
+                .Returns(expectedProducts);
 
-            _productRepositoryMock.Setup(repo => repo.GetAll())
-                .Returns(products.AsQueryable());
 
-            _mapperMock.Setup(mapper => mapper.Map<List<ProductDto>>(It.IsAny<List<Product>>()))
-                .Returns(productDtos);
-
-            // Act
             var result = await _productService.GetAllProductsAsync();
 
-            // Assert
+
             result.Should().NotBeNull();
-            result.Should().BeEquivalentTo(productDtos);
-            result.Count.Should().Be(2);
+            result.Should().HaveCount(2);
+            result.Should().BeEquivalentTo(expectedProducts);
         }
 
         [Fact]
-        public async Task GetAllProductsAsync_ShouldReturnEmptyList_WhenNoProductsExist()
+        public async Task GetProductByIdAsync_WithValidId_ShouldReturnProduct()
         {
-            // Arrange
-            var emptyList = new List<Product>();
-            var emptyDtoList = new List<ProductDto>();
 
-            _productRepositoryMock.Setup(repo => repo.GetAll())
-                .Returns(emptyList.AsQueryable());
-
-            _mapperMock.Setup(mapper => mapper.Map<List<ProductDto>>(It.IsAny<List<Product>>()))
-                .Returns(emptyDtoList);
-
-            // Act
-            var result = await _productService.GetAllProductsAsync();
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-        }
-
-        [Fact]
-        public async Task GetProductByIdAsync_ShouldReturnProduct_WhenProductExists()
-        {
-            // Arrange
             var productId = Guid.NewGuid();
-            var product = new Product { Id = productId, ProductName = "Test Product", CategoryId = Guid.NewGuid() };
-            var productDto = new ProductDto { Id = productId, ProductName = "Test Product" };
+            var product = new Product
+            {
+                Id = productId,
+                ProductName = "Test Product",
+                ProductStatus = ProductStatus.Active,
+                IsDeleted = false
+            };
 
-            _productRepositoryMock.Setup(repo => repo.GetByIdAsync(productId))
+            var expectedProductDto = new ProductDto
+            {
+                Id = productId,
+                ProductName = "Test Product"
+            };
+
+            _mockProductRepository.Setup(x => x.GetByIdAsync(productId))
                 .ReturnsAsync(product);
 
-            _mapperMock.Setup(mapper => mapper.Map<ProductDto>(It.IsAny<Product>()))
-                .Returns(productDto);
+            _mockMapper.Setup(x => x.Map<ProductDto>(product))
+                .Returns(expectedProductDto);
 
-            // Act
+
             var result = await _productService.GetProductByIdAsync(productId);
 
-            // Assert
+
             result.Should().NotBeNull();
-            result.Should().BeEquivalentTo(productDto);
+            result.Should().BeEquivalentTo(expectedProductDto);
         }
 
         [Fact]
-        public async Task GetProductByIdAsync_ShouldThrowKeyNotFoundException_WhenProductDoesNotExist()
+        public async Task GetProductByIdAsync_WithInvalidId_ShouldThrowEntityNotFoundException()
         {
-            // Arrange
-            var productId = Guid.NewGuid();
 
-            _productRepositoryMock.Setup(repo => repo.GetByIdAsync(productId))
+            var productId = Guid.NewGuid();
+            _mockProductRepository.Setup(x => x.GetByIdAsync(productId))
                 .ReturnsAsync((Product)null);
 
-            // Act & Assert
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => 
+
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => 
                 _productService.GetProductByIdAsync(productId));
         }
 
         [Fact]
-        public async Task GetProductsByCategoryAsync_ShouldReturnProductsInCategory()
+        public async Task GetProductByIdAsync_WithDeletedProduct_ShouldThrowEntityNotFoundException()
         {
-            // Arrange
+
+            var productId = Guid.NewGuid();
+            var product = new Product
+            {
+                Id = productId,
+                ProductName = "Test Product",
+                ProductStatus = ProductStatus.Active,
+                IsDeleted = true
+            };
+
+            _mockProductRepository.Setup(x => x.GetByIdAsync(productId))
+                .ReturnsAsync(product);
+
+
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => 
+                _productService.GetProductByIdAsync(productId));
+        }
+
+        [Fact]
+        public async Task CreateProductAsync_WithValidData_ShouldCreateProduct()
+        {
+
             var categoryId = Guid.NewGuid();
-            var products = new List<Product>
-            {
-                new Product { Id = Guid.NewGuid(), ProductName = "Product 1", CategoryId = categoryId },
-                new Product { Id = Guid.NewGuid(), ProductName = "Product 2", CategoryId = categoryId },
-                new Product { Id = Guid.NewGuid(), ProductName = "Product 3", CategoryId = Guid.NewGuid() }
-            };
-
-            var productDtos = new List<ProductDto>
-            {
-                new ProductDto { Id = products[0].Id, ProductName = "Product 1", CategoryId = categoryId },
-                new ProductDto { Id = products[1].Id, ProductName = "Product 2", CategoryId = categoryId }
-            };
-
-            _productRepositoryMock.Setup(repo => repo.GetAll())
-                .Returns(products.AsQueryable());
-
-            _mapperMock.Setup(mapper => mapper.Map<List<ProductDto>>(It.IsAny<List<Product>>()))
-                .Returns(productDtos);
-
-            // Act
-            var result = await _productService.GetProductsByCategoryAsync(categoryId);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEquivalentTo(productDtos);
-            result.Count.Should().Be(2);
-        }
-
-        [Fact]
-        public async Task GetFeaturedProductsAsync_ShouldReturnFeaturedProducts()
-        {
-            // Arrange
-            var products = new List<Product>
-            {
-                new Product { Id = Guid.NewGuid(), ProductName = "Product 1", IsFeatured = true },
-                new Product { Id = Guid.NewGuid(), ProductName = "Product 2", IsFeatured = true },
-                new Product { Id = Guid.NewGuid(), ProductName = "Product 3", IsFeatured = false }
-            };
-
-            var featuredProductDtos = new List<ProductDto>
-            {
-                new ProductDto { Id = products[0].Id, ProductName = "Product 1" },
-                new ProductDto { Id = products[1].Id, ProductName = "Product 2" }
-            };
-
-            _productRepositoryMock.Setup(repo => repo.GetAll())
-                .Returns(products.AsQueryable());
-
-            _mapperMock.Setup(mapper => mapper.Map<List<ProductDto>>(It.IsAny<List<Product>>()))
-                .Returns(featuredProductDtos);
-
-            // Act
-            var result = await _productService.GetFeaturedProductsAsync();
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEquivalentTo(featuredProductDtos);
-            result.Count.Should().Be(2);
-        }
-
-        [Fact]
-        public async Task CreateProductAsync_ShouldThrowArgumentNullException_WhenProductDtoIsNull()
-        {
-            // Arrange & Act & Assert
-            await Assert.ThrowsAsync<ArgumentNullException>(() => 
-                _productService.CreateProductAsync(null));
-        }
-
-        [Fact]
-        public async Task CreateProductAsync_ShouldReturnCreatedProduct()
-        {
-            // Arrange
             var createProductDto = new CreateProductDto
             {
                 ProductName = "New Product",
-                ProductDescription = "Description",
+                ProductDescription = "Test Description",
                 ProductSlug = "new-product",
                 ProductPrice = 99.99m,
-                CategoryId = Guid.NewGuid()
+                ProductStock = 10,
+                ProductSku = "TST-001",
+                CategoryId = categoryId
+            };
+
+            var category = new Category
+            {
+                Id = categoryId,
+                CategoryName = "Test Category",
+                IsDeleted = false
             };
 
             var product = new Product
             {
+                ProductName = "New Product",
+                ProductDescription = "Test Description",
+                ProductSlug = "new-product",
+                ProductPrice = 99.99m,
+                ProductStock = 10,
+                ProductSku = "TST-001",
+                CategoryId = categoryId,
+                ProductStatus = ProductStatus.Active
+            };
+
+            var expectedProductDto = new ProductDto
+            {
                 Id = Guid.NewGuid(),
                 ProductName = "New Product",
-                ProductDescription = "Description",
+                ProductDescription = "Test Description",
                 ProductSlug = "new-product",
-                ProductPrice = 99.99m
+                ProductPrice = 99.99m,
+                ProductStock = 10,
+                ProductSku = "TST-001",
+                CategoryId = categoryId
             };
 
-            var productDto = new ProductDto
-            {
-                Id = product.Id,
-                ProductName = "New Product",
-                ProductDescription = "Description",
-                ProductSlug = "new-product",
-                ProductPrice = 99.99m
-            };
+            _mockCreateValidator.Setup(x => x.ValidateAsync(createProductDto, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ValidationResult());
 
-            _mapperMock.Setup(mapper => mapper.Map<Product>(createProductDto))
+            _mockCategoryRepository.Setup(x => x.GetByIdAsync(categoryId))
+                .ReturnsAsync(category);
+
+            _mockMapper.Setup(x => x.Map<Product>(createProductDto))
                 .Returns(product);
 
-            _mapperMock.Setup(mapper => mapper.Map<ProductDto>(product))
-                .Returns(productDto);
+            _mockMapper.Setup(x => x.Map<ProductDto>(product))
+                .Returns(expectedProductDto);
 
-            // Act
+            _mockUnitOfWork.Setup(x => x.HasActiveTransaction())
+                .Returns(false);
+
+
             var result = await _productService.CreateProductAsync(createProductDto);
 
-            // Assert
+
             result.Should().NotBeNull();
-            result.Should().BeEquivalentTo(productDto);
-
-            _productRepositoryMock.Verify(repo => repo.AddAsync(product), Times.Once);
-            _unitOfWorkMock.Verify(uow => uow.CompleteAsync(), Times.Once);
+            result.Should().BeEquivalentTo(expectedProductDto);
+            
+            _mockProductRepository.Verify(x => x.Add(It.IsAny<Product>()), Times.Once);
+            _mockUnitOfWork.Verify(x => x.BeginTransactionAsync(), Times.Once);
+            _mockUnitOfWork.Verify(x => x.CompleteAsync(), Times.Once);
+            _mockUnitOfWork.Verify(x => x.CommitTransactionAsync(), Times.Once);
         }
 
         [Fact]
-        public async Task UpdateProductAsync_ShouldThrowArgumentNullException_WhenProductDtoIsNull()
+        public async Task CreateProductAsync_WithInvalidData_ShouldThrowValidationException()
         {
-            // Arrange & Act & Assert
-            await Assert.ThrowsAsync<ArgumentNullException>(() => 
-                _productService.UpdateProductAsync(null));
-        }
 
-        [Fact]
-        public async Task UpdateProductAsync_ShouldThrowKeyNotFoundException_WhenProductDoesNotExist()
-        {
-            // Arrange
-            var productId = Guid.NewGuid();
-            var updateProductDto = new UpdateProductDto
+            var createProductDto = new CreateProductDto();
+            var validationFailures = new List<ValidationFailure>
             {
-                Id = productId,
-                ProductName = "Updated Product"
+                new ValidationFailure("ProductName", "Product name is required")
             };
 
-            _productRepositoryMock.Setup(repo => repo.GetByIdAsync(productId))
-                .ReturnsAsync((Product)null);
+            _mockCreateValidator.Setup(x => x.ValidateAsync(createProductDto, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ValidationResult(validationFailures));
 
-            // Act & Assert
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => 
-                _productService.UpdateProductAsync(updateProductDto));
+
+            await Assert.ThrowsAsync<Ecommerce.Core.Exceptions.ValidationException>(() => 
+                _productService.CreateProductAsync(createProductDto));
         }
 
         [Fact]
-        public async Task UpdateProductAsync_ShouldReturnUpdatedProduct()
+        public async Task CreateProductAsync_WithInvalidCategoryId_ShouldThrowEntityNotFoundException()
         {
-            // Arrange
+
+            var categoryId = Guid.NewGuid();
+            var createProductDto = new CreateProductDto
+            {
+                ProductName = "New Product",
+                ProductDescription = "Test Description",
+                ProductSlug = "new-product",
+                ProductPrice = 99.99m,
+                ProductStock = 10,
+                ProductSku = "TST-001",
+                CategoryId = categoryId
+            };
+
+            _mockCreateValidator.Setup(x => x.ValidateAsync(createProductDto, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ValidationResult());
+
+            _mockCategoryRepository.Setup(x => x.GetByIdAsync(categoryId))
+                .ReturnsAsync((Category)null);
+
+
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => 
+                _productService.CreateProductAsync(createProductDto));
+        }
+
+        [Fact]
+        public async Task UpdateProductAsync_WithValidData_ShouldUpdateProduct()
+        {
+
             var productId = Guid.NewGuid();
+            var categoryId = Guid.NewGuid();
             var updateProductDto = new UpdateProductDto
             {
                 Id = productId,
                 ProductName = "Updated Product",
-                ProductDescription = "Updated Description"
+                ProductDescription = "Updated Description",
+                ProductSlug = "updated-product",
+                ProductPrice = 199.99m,
+                ProductStock = 20,
+                ProductSku = "TST-002",
+                CategoryId = categoryId
             };
 
             var existingProduct = new Product
             {
                 Id = productId,
-                ProductName = "Original Product",
-                ProductDescription = "Original Description"
+                ProductName = "Old Product",
+                ProductDescription = "Old Description",
+                ProductSlug = "old-product",
+                ProductPrice = 99.99m,
+                ProductStock = 10,
+                ProductSku = "TST-001",
+                CategoryId = Guid.NewGuid(),
+                ProductStatus = ProductStatus.Active,
+                IsDeleted = false
             };
 
-            var updatedProductDto = new ProductDto
+            var category = new Category
+            {
+                Id = categoryId,
+                CategoryName = "Test Category",
+                IsDeleted = false
+            };
+
+            var expectedProductDto = new ProductDto
             {
                 Id = productId,
                 ProductName = "Updated Product",
-                ProductDescription = "Updated Description"
+                ProductDescription = "Updated Description",
+                ProductSlug = "updated-product",
+                ProductPrice = 199.99m,
+                ProductStock = 20,
+                ProductSku = "TST-002",
+                CategoryId = categoryId
             };
 
-            _productRepositoryMock.Setup(repo => repo.GetByIdAsync(productId))
+            _mockUpdateValidator.Setup(x => x.ValidateAsync(updateProductDto, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ValidationResult());
+
+            _mockProductRepository.Setup(x => x.GetByIdAsync(productId))
                 .ReturnsAsync(existingProduct);
 
-            _mapperMock.Setup(mapper => mapper.Map(updateProductDto, existingProduct))
-                .Callback<UpdateProductDto, Product>((src, dest) =>
-                {
-                    dest.ProductName = src.ProductName;
-                    dest.ProductDescription = src.ProductDescription;
-                });
+            _mockCategoryRepository.Setup(x => x.GetByIdAsync(categoryId))
+                .ReturnsAsync(category);
 
-            _mapperMock.Setup(mapper => mapper.Map<ProductDto>(It.IsAny<Product>()))
-                .Returns(updatedProductDto);
+            _mockMapper.Setup(x => x.Map<ProductDto>(It.IsAny<Product>()))
+                .Returns(expectedProductDto);
 
-            // Act
+            _mockUnitOfWork.Setup(x => x.HasActiveTransaction())
+                .Returns(false);
+
+
             var result = await _productService.UpdateProductAsync(updateProductDto);
 
-            // Assert
+
             result.Should().NotBeNull();
-            result.Should().BeEquivalentTo(updatedProductDto);
-
-            _productRepositoryMock.Verify(repo => repo.Update(existingProduct), Times.Once);
-            _unitOfWorkMock.Verify(uow => uow.CompleteAsync(), Times.Once);
+            result.Should().BeEquivalentTo(expectedProductDto);
+            
+            _mockUnitOfWork.Verify(x => x.BeginTransactionAsync(), Times.Once);
+            _mockUnitOfWork.Verify(x => x.CompleteAsync(), Times.Once);
+            _mockUnitOfWork.Verify(x => x.CommitTransactionAsync(), Times.Once);
         }
 
         [Fact]
-        public async Task DeleteProductAsync_ShouldThrowKeyNotFoundException_WhenProductDoesNotExist()
+        public async Task DeleteProductAsync_WithValidId_ShouldSetIsDeletedToTrue()
         {
-            // Arrange
-            var productId = Guid.NewGuid();
 
-            _productRepositoryMock.Setup(repo => repo.GetByIdAsync(productId))
-                .ReturnsAsync((Product)null);
-
-            // Act & Assert
-            await Assert.ThrowsAsync<KeyNotFoundException>(() => 
-                _productService.DeleteProductAsync(productId));
-        }
-
-        [Fact]
-        public async Task DeleteProductAsync_ShouldReturnTrue_WhenProductIsDeleted()
-        {
-            // Arrange
             var productId = Guid.NewGuid();
             var product = new Product
             {
                 Id = productId,
-                ProductName = "Product to Delete"
+                ProductName = "Test Product",
+                ProductStatus = ProductStatus.Active,
+                IsDeleted = false
             };
 
-            _productRepositoryMock.Setup(repo => repo.GetByIdAsync(productId))
+            _mockProductRepository.Setup(x => x.GetByIdAsync(productId))
                 .ReturnsAsync(product);
 
-            // Act
+            _mockUnitOfWork.Setup(x => x.HasActiveTransaction())
+                .Returns(false);
+
+
             var result = await _productService.DeleteProductAsync(productId);
 
-            // Assert
-            result.Should().BeTrue();
 
-            _productRepositoryMock.Verify(repo => repo.Delete(product), Times.Once);
-            _unitOfWorkMock.Verify(uow => uow.CompleteAsync(), Times.Once);
+            result.Should().BeTrue();
+            product.IsDeleted.Should().BeTrue();
+            
+            _mockUnitOfWork.Verify(x => x.BeginTransactionAsync(), Times.Once);
+            _mockUnitOfWork.Verify(x => x.CompleteAsync(), Times.Once);
+            _mockUnitOfWork.Verify(x => x.CommitTransactionAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task DeleteProductAsync_WithInvalidId_ShouldThrowEntityNotFoundException()
+        {
+
+            var productId = Guid.NewGuid();
+            _mockProductRepository.Setup(x => x.GetByIdAsync(productId))
+                .ReturnsAsync((Product)null);
+
+
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => 
+                _productService.DeleteProductAsync(productId));
+        }
+
+        [Fact]
+        public async Task GetProductsByCategoryAsync_WithValidCategoryId_ShouldReturnFilteredProducts()
+        {
+
+            var categoryId = Guid.NewGuid();
+            
+            var productsQueryable = new List<Product>
+            {
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 1", CategoryId = categoryId, ProductStatus = ProductStatus.Active, IsDeleted = false },
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 2", CategoryId = categoryId, ProductStatus = ProductStatus.Active, IsDeleted = false },
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 3", CategoryId = Guid.NewGuid(), ProductStatus = ProductStatus.Active, IsDeleted = false }
+            }.AsQueryable();
+
+            var mockDbSet = new Mock<DbSet<Product>>();
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.Provider).Returns(productsQueryable.Provider);
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.Expression).Returns(productsQueryable.Expression);
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.ElementType).Returns(productsQueryable.ElementType);
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.GetEnumerator()).Returns(() => productsQueryable.GetEnumerator());
+
+            _mockProductRepository.Setup(x => x.Ts).Returns(mockDbSet.Object);
+
+            var category = new Category
+            {
+                Id = categoryId,
+                CategoryName = "Test Category",
+                IsDeleted = false
+            };
+
+            _mockCategoryRepository.Setup(x => x.GetByIdAsync(categoryId))
+                .ReturnsAsync(category);
+
+            var expectedProducts = new List<ProductDto>
+            {
+                new ProductDto { Id = productsQueryable.ElementAt(0).Id, ProductName = "Product 1", CategoryId = categoryId },
+                new ProductDto { Id = productsQueryable.ElementAt(1).Id, ProductName = "Product 2", CategoryId = categoryId }
+            };
+
+            _mockMapper.Setup(x => x.Map<List<ProductDto>>(It.IsAny<List<Product>>()))
+                .Returns(expectedProducts);
+
+
+            var result = await _productService.GetProductsByCategoryAsync(categoryId);
+
+
+            result.Should().NotBeNull();
+            result.Should().HaveCount(2);
+            result.Should().BeEquivalentTo(expectedProducts);
+        }
+
+        [Fact]
+        public async Task GetProductsByCategoryAsync_WithInvalidCategoryId_ShouldThrowEntityNotFoundException()
+        {
+
+            var categoryId = Guid.NewGuid();
+            
+            _mockCategoryRepository.Setup(x => x.GetByIdAsync(categoryId))
+                .ReturnsAsync((Category)null);
+
+
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => 
+                _productService.GetProductsByCategoryAsync(categoryId));
+        }
+
+        [Fact]
+        public async Task GetFeaturedProductsAsync_ShouldReturnFeaturedProducts()
+        {
+
+            var productsQueryable = new List<Product>
+            {
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 1", IsFeatured = true, ProductStatus = ProductStatus.Active, IsDeleted = false },
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 2", IsFeatured = true, ProductStatus = ProductStatus.Active, IsDeleted = false },
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 3", IsFeatured = false, ProductStatus = ProductStatus.Active, IsDeleted = false },
+                new Product { Id = Guid.NewGuid(), ProductName = "Product 4", IsFeatured = true, ProductStatus = ProductStatus.Inactive, IsDeleted = false }
+            }.AsQueryable();
+
+            var mockDbSet = new Mock<DbSet<Product>>();
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.Provider).Returns(productsQueryable.Provider);
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.Expression).Returns(productsQueryable.Expression);
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.ElementType).Returns(productsQueryable.ElementType);
+            mockDbSet.As<IQueryable<Product>>().Setup(m => m.GetEnumerator()).Returns(() => productsQueryable.GetEnumerator());
+
+            _mockProductRepository.Setup(x => x.Ts).Returns(mockDbSet.Object);
+
+            var expectedProducts = new List<ProductDto>
+            {
+                new ProductDto { Id = productsQueryable.ElementAt(0).Id, ProductName = "Product 1", IsFeatured = true },
+                new ProductDto { Id = productsQueryable.ElementAt(1).Id, ProductName = "Product 2", IsFeatured = true }
+            };
+
+            _mockMapper.Setup(x => x.Map<List<ProductDto>>(It.IsAny<List<Product>>()))
+                .Returns(expectedProducts);
+
+
+            var result = await _productService.GetFeaturedProductsAsync();
+
+
+            result.Should().NotBeNull();
+            result.Should().HaveCount(2);
+            result.Should().BeEquivalentTo(expectedProducts);
         }
     }
-} 
+}

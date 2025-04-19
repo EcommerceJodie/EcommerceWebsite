@@ -14,12 +14,13 @@ namespace Ecommerce.Core.Models.Entities
         public string ShippingPostalCode { get; set; }
         public string ShippingCountry { get; set; }
         public string PaymentMethod { get; set; }
-        public string PaymentTransactionId { get; set; }
+        public string? PaymentTransactionId { get; set; }
         public DateTime? PaymentDate { get; set; }
         public DateTime? ShippingDate { get; set; }
         public string Notes { get; set; }
         public Guid CustomerId { get; set; }
         public virtual Customer Customer { get; set; }
         public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
+        public virtual ICollection<PaymentTransaction> PaymentTransactions { get; set; } = new List<PaymentTransaction>();
     }
 } 

@@ -71,6 +71,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ isEdit = false }) => {
       setFormData({
         ...formData,
         categoryImage: file,
+        categoryImageUrl: '',
       });
       
       // Tạo preview cho ảnh
@@ -143,7 +144,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ isEdit = false }) => {
           </div>
         )}
         
-        <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6">
+        <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6" encType="multipart/form-data">
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="categoryName">
               Tên danh mục <span className="text-red-500">*</span>
@@ -249,12 +250,13 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ isEdit = false }) => {
             <label className="flex items-center">
               <input
                 type="checkbox"
+                id="isActive"
                 name="isActive"
                 checked={formData.isActive}
                 onChange={handleInputChange}
-                className="form-checkbox h-5 w-5 text-indigo-600"
+                className="form-checkbox h-5 w-5 text-indigo-600 rounded focus:ring-indigo-500"
               />
-              <span className="ml-2 text-gray-700">Hiển thị danh mục</span>
+              <span className="ml-2 text-gray-700">Hiển thị danh mục (kích hoạt)</span>
             </label>
           </div>
           
@@ -262,26 +264,23 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ isEdit = false }) => {
             <button
               type="button"
               onClick={() => navigate('/categories')}
-              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded"
             >
-              Hủy
+              Hủy bỏ
             </button>
             <button
               type="submit"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded"
               disabled={loading}
-              className={`bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded focus:outline-none focus:shadow-outline ${
-                loading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
             >
               {loading ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Đang xử lý...
-                </span>
-              ) : isEdit ? 'Cập nhật' : 'Thêm mới'}
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <span>Đang xử lý...</span>
+                </div>
+              ) : (
+                <span>{isEdit ? 'Cập nhật' : 'Tạo mới'}</span>
+              )}
             </button>
           </div>
         </form>

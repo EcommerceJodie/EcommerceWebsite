@@ -25,7 +25,6 @@ namespace Ecommerce.Core.DTOs
         [StringLength(100, ErrorMessage = "Slug không được vượt quá 100 ký tự")]
         public string CategorySlug { get; set; }
         
-        [StringLength(255, ErrorMessage = "URL hình ảnh không được vượt quá 255 ký tự")]
         public string CategoryImageUrl { get; set; }
         
         public IFormFile CategoryImage { get; set; }

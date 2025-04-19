@@ -1,0 +1,189 @@
+@model Ecommerce.Core.DTOs.CartDto
+
+@{
+    ViewData["Title"] = "Thanh toán";
+}
+
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8">
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger mb-4">
+                    @TempData["ErrorMessage"]
+                </div>
+            }
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">Thông tin giao hàng</h4>
+                </div>
+                <div class="card-body">
+                    <form asp-controller="Checkout" asp-action="PlaceOrder" method="post" id="checkoutForm">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="ShippingAddress" class="form-label">Địa chỉ giao hàng <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="ShippingAddress" name="ShippingAddress" placeholder="Số nhà, đường, ..." required minlength="5" maxlength="200">
+                                <div class="invalid-feedback">Vui lòng nhập địa chỉ giao hàng hợp lệ.</div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="ShippingCity" class="form-label">Thành phố <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="ShippingCity" name="ShippingCity" required minlength="2" maxlength="100">
+                                <div class="invalid-feedback">Vui lòng nhập tên thành phố.</div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="ShippingPostalCode" class="form-label">Mã bưu điện</label>
+                                <input type="text" class="form-control" id="ShippingPostalCode" name="ShippingPostalCode" maxlength="20">
+                            </div>
+
+                            <div class="col-12">
+                                <label for="ShippingCountry" class="form-label">Quốc gia <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="ShippingCountry" name="ShippingCountry" value="Việt Nam" required minlength="2" maxlength="100">
+                                <div class="invalid-feedback">Vui lòng nhập tên quốc gia.</div>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="Notes" class="form-label">Ghi chú đơn hàng</label>
+                                <textarea class="form-control" id="Notes" name="Notes" rows="3" placeholder="Ghi chú về đơn hàng, ví dụ: thời gian hay chỉ dẫn giao hàng chi tiết." maxlength="500"></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- Lưu các sản phẩm đã chọn -->
+                        @if (Model.Items != null && Model.Items.Any())
+                        {
+                            foreach (var item in Model.Items)
+                            {
+                                <input type="hidden" name="ProductIds" value="@item.ProductId" />
+                            }
+                        }
+
+                        <hr class="my-4">
+
+                        <h4 class="mb-3">Phương thức thanh toán</h4>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="PaymentMethod" id="vnpay" value="VNPAY" checked>
+                            <label class="form-check-label d-flex align-items-center" for="vnpay">
+                                <span class="me-2">VNPAY</span>
+                                <img src="https://sandbox.vnpayment.vn/paymentv2/images/icons/logo-en.svg" alt="VNPAY" height="24">
+                            </label>
+                            <div class="form-text">Thanh toán trực tuyến qua VNPAY (ATM, Thẻ quốc tế, QR Code)</div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <button class="btn btn-primary btn-lg w-100" type="submit" id="submitButton">
+                            <i class="bi bi-credit-card me-2"></i>Thanh toán ngay
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">Đơn hàng của bạn</h4>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        @foreach (var item in Model.Items)
+                        {
+                            <div class="list-group-item py-3 d-flex">
+                                <div class="flex-shrink-0">
+                                    @if (!string.IsNullOrEmpty(item.ProductImageUrl))
+                                    {
+                                        <img src="@item.ProductImageUrl" alt="@item.ProductName" class="img-fluid rounded" style="width: 60px; height: 60px; object-fit: cover;">
+                                    }
+                                    else
+                                    {
+                                        <div class="bg-light d-flex align-items-center justify-content-center rounded" style="width: 60px; height: 60px;">
+                                            <i class="bi bi-image text-secondary"></i>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="ms-3 flex-grow-1">
+                                    <h6 class="mb-0">@item.ProductName</h6>
+                                    <div class="d-flex justify-content-between mt-2 text-muted small">
+                                        <span>@item.Quantity x @(item.DiscountPrice.HasValue ? item.DiscountPrice.Value.ToString("N0") : item.UnitPrice.ToString("N0")) ₫</span>
+                                        <span>@((item.DiscountPrice.HasValue ? item.DiscountPrice.Value : item.UnitPrice) * item.Quantity).ToString("N0") ₫</span>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="card-footer bg-white">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Tạm tính</span>
+                        <span>@Model.Items.Sum(i => (i.DiscountPrice.HasValue ? i.DiscountPrice.Value : i.UnitPrice) * i.Quantity).ToString("N0") ₫</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Phí vận chuyển</span>
+                        <span>0 ₫</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between fw-bold mb-0">
+                        <span>Tổng cộng</span>
+                        <span>@Model.Items.Sum(i => (i.DiscountPrice.HasValue ? i.DiscountPrice.Value : i.UnitPrice) * i.Quantity).ToString("N0") ₫</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-grid">
+                <a asp-controller="Cart" asp-action="Index" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left me-2"></i>Quay lại giỏ hàng
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Checkout form initialized');
+            const checkoutForm = document.getElementById('checkoutForm');
+            const submitButton = document.getElementById('submitButton');
+            
+            if (checkoutForm) {
+                console.log('Form found, attaching event listener');
+                
+                // Log form data helper function
+                function logFormData(form) {
+                    const formData = new FormData(form);
+                    console.log('Form data:');
+                    for (const [key, value] of formData.entries()) {
+                        console.log(`  ${key}: ${value}`);
+                    }
+                }
+                
+                checkoutForm.addEventListener('submit', function(event) {
+                    console.log('Form submit event triggered');
+                    
+                    // Log form fields
+                    logFormData(checkoutForm);
+                    
+                    // Check validity client-side
+                    if (!checkoutForm.checkValidity()) {
+                        console.error('Form validation failed');
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                    }
+                    
+                    console.log('Form validation passed, proceeding with submission');
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang xử lý...';
+                    
+                    // We'll log the completion after a delay (this won't execute if the form redirects)
+                    setTimeout(function() {
+                        console.log('Warning: Form still on page after 5 seconds. Possible issue with submission.');
+                    }, 5000);
+                });
+            } else {
+                console.error('Checkout form not found in DOM');
+            }
+        });
+    </script>
+} 

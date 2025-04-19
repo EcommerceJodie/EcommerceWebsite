@@ -32,7 +32,8 @@ namespace Ecommerce.Core.Validators.ProductValidators
 
             RuleFor(x => x.ProductDiscountPrice)
                 .GreaterThan(0).WithMessage("Giá khuyến mãi phải lớn hơn 0")
-                .LessThan(x => x.ProductPrice).WithMessage("Giá khuyến mãi phải nhỏ hơn giá gốc")
+                .Must((model, discountPrice) => discountPrice < model.ProductPrice)
+                .WithMessage("Giá khuyến mãi phải nhỏ hơn giá gốc")
                 .When(x => x.ProductDiscountPrice.HasValue);
 
             RuleFor(x => x.ProductStock)

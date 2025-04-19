@@ -6,16 +6,35 @@
 <ul class="navbar-nav">
 @if (SignInManager.IsSignedIn(User))
 {
+    var user = await UserManager.GetUserAsync(User);
+    var firstLetter = !string.IsNullOrEmpty(user?.FirstName) 
+        ? user.FirstName[0].ToString().ToUpper() 
+        : (!string.IsNullOrEmpty(user?.Email) ? user.Email[0].ToString().ToUpper() : "U");
+    
     <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            Xin chào, @((await UserManager.GetUserAsync(User))?.FirstName ?? User.Identity?.Name)
+        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <div class="rounded-circle me-2 d-flex align-items-center justify-content-center" 
+                 style="width: 32px; height: 32px; background-color: #007bff; color: white; font-weight: bold;">
+                @firstLetter
+            </div>
+            <span>@(user?.FirstName ?? User.Identity?.Name)</span>
         </a>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-            <li><a class="dropdown-item" asp-controller="Account" asp-action="Profile">Thông tin cá nhân</a></li>
+            <li><a class="dropdown-item" asp-controller="Account" asp-action="Profile">
+                <i class="bi bi-person me-2"></i>Thông tin cá nhân
+            </a></li>
+            <li><a class="dropdown-item" asp-controller="Order" asp-action="History">
+                <i class="bi bi-clock-history me-2"></i>Lịch sử đơn hàng
+            </a></li>
+            <li><a class="dropdown-item" href="#">
+                <i class="bi bi-gear me-2"></i>Cài đặt
+            </a></li>
             <li><hr class="dropdown-divider"></li>
             <li>
                 <form class="form-inline" asp-controller="Account" asp-action="Logout" method="post">
-                    <button type="submit" class="dropdown-item">Đăng xuất</button>
+                    <button type="submit" class="dropdown-item">
+                        <i class="bi bi-box-arrow-right me-2"></i>Đăng xuất
+                    </button>
                 </form>
             </li>
         </ul>
@@ -23,9 +42,6 @@
 }
 else
 {
-    <li class="nav-item">
-        <a class="nav-link" asp-controller="Account" asp-action="Register">Đăng ký</a>
-    </li>
     <li class="nav-item">
         <a class="nav-link" asp-controller="Account" asp-action="Login">Đăng nhập</a>
     </li>

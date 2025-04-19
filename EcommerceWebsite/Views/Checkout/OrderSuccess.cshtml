@@ -1,0 +1,104 @@
+@model Ecommerce.Core.DTOs.OrderDto
+
+@{
+    ViewData["Title"] = "Đặt hàng thành công";
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body text-center p-5">
+                    <div class="display-1 text-success mb-4">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <h2 class="mb-4">Cảm ơn bạn đã đặt hàng!</h2>
+                    <p class="lead mb-4">Đơn hàng của bạn đã được xác nhận và đang được xử lý.</p>
+                    <div class="d-flex justify-content-center">
+                        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-primary me-3">
+                            <i class="bi bi-house me-2"></i>Quay lại trang chủ
+                        </a>
+                        <a asp-controller="Order" asp-action="History" class="btn btn-primary">
+                            <i class="bi bi-bag me-2"></i>Xem đơn hàng của tôi
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">Chi tiết đơn hàng #@Model.OrderNumber</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Thông tin đơn hàng</h5>
+                            <p class="mb-1"><strong>Mã đơn hàng:</strong> @Model.OrderNumber</p>
+                            <p class="mb-1"><strong>Ngày đặt hàng:</strong> @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                            <p class="mb-1"><strong>Trạng thái đơn hàng:</strong> 
+                                <span class="badge bg-success">@Model.OrderStatus</span>
+                            </p>
+                            <p class="mb-1"><strong>Phương thức thanh toán:</strong> @Model.PaymentMethod</p>
+                            <p class="mb-0"><strong>Mã giao dịch:</strong> @Model.PaymentTransactionId</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Thông tin giao hàng</h5>
+                            <p class="mb-1"><strong>Người đặt:</strong> @Model.CustomerName</p>
+                            <p class="mb-1"><strong>Địa chỉ:</strong> @Model.ShippingAddress</p>
+                            <p class="mb-1"><strong>Thành phố:</strong> @Model.ShippingCity</p>
+                            <p class="mb-1"><strong>Mã bưu điện:</strong> @Model.ShippingPostalCode</p>
+                            <p class="mb-0"><strong>Quốc gia:</strong> @Model.ShippingCountry</p>
+                        </div>
+                    </div>
+
+                    <h5>Sản phẩm</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Sản phẩm</th>
+                                    <th class="text-center">Số lượng</th>
+                                    <th class="text-end">Đơn giá</th>
+                                    <th class="text-end">Tổng</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Model.OrderDetails)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                @if (!string.IsNullOrEmpty(item.ProductImageUrl))
+                                                {
+                                                    <img src="@item.ProductImageUrl" alt="@item.ProductName" class="me-3" style="width: 60px; height: 60px; object-fit: cover;">
+                                                }
+                                                else
+                                                {
+                                                    <div class="bg-light me-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                                        <i class="bi bi-image text-secondary"></i>
+                                                    </div>
+                                                }
+                                                <div>
+                                                    <h6 class="mb-0">@item.ProductName</h6>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">@item.Quantity</td>
+                                        <td class="text-end">@item.UnitPrice.ToString("N0") ₫</td>
+                                        <td class="text-end">@item.Subtotal.ToString("N0") ₫</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="text-end"><strong>Tổng cộng:</strong></td>
+                                    <td class="text-end"><strong>@Model.TotalAmount.ToString("N0") ₫</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

@@ -1,0 +1,35 @@
+@using Ecommerce.Core.Interfaces.Services
+@inject ICartService CartService
+@using System.Security.Claims
+
+@{
+    string GetCartId()
+    {
+        if (User.Identity.IsAuthenticated)
+        {
+            return User.FindFirstValue(ClaimTypes.NameIdentifier);
+        }
+        else if (Context.Request.Cookies.TryGetValue("cart_id", out string cartId) && !string.IsNullOrEmpty(cartId))
+        {
+            return cartId;
+        }
+        return null;
+    }
+
+    var cartId = GetCartId();
+    var cart = await CartService.GetCartAsync(cartId);
+    var totalItems = cart?.TotalItems ?? 0;
+}
+
+<div class="cart-icon position-relative">
+    <a asp-controller="Cart" asp-action="Index" class="btn btn-outline-light">
+        <i class="bi bi-cart fs-5"></i>
+        @if (totalItems > 0)
+        {
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                @totalItems
+                <span class="visually-hidden">sản phẩm trong giỏ hàng</span>
+            </span>
+        }
+    </a>
+</div> 

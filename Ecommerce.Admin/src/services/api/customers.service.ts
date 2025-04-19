@@ -2,7 +2,7 @@ import apiClient from '../http/api-client';
 import { Customer } from '../../models/Customer';
 
 class CustomersApiService {
-  private readonly baseEndpoint = '/customers';
+  private readonly baseEndpoint = '/api/customers';
   
 
   public async getAll(): Promise<Customer[]> {

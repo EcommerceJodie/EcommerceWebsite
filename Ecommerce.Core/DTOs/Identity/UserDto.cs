@@ -11,6 +11,7 @@ namespace Ecommerce.Core.DTOs.Identity
         public string Email { get; set; }
         public string PhoneNumber { get; set; }
         public string Token { get; set; }
+        public string RefreshToken { get; set; }
         public IList<string> Roles { get; set; }
         public DateTime CreatedAt { get; set; }
     }

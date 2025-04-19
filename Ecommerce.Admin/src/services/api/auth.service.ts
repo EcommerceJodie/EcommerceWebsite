@@ -5,6 +5,10 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
 export interface UserResponse {
   id: string;
   email: string;
@@ -12,12 +16,13 @@ export interface UserResponse {
   lastName: string;
   phoneNumber: string;
   token: string;
+  refreshToken: string;
   roles: string[];
   createdAt: string;
 }
 
 class AuthApiService {
-  private readonly baseEndpoint = '/auth';
+  private readonly baseEndpoint = '/api/auth';
   
   
   public async login(credentials: LoginRequest): Promise<UserResponse> {
@@ -32,6 +37,10 @@ class AuthApiService {
   
   public async logout(): Promise<{message: string}> {
     return apiClient.post<{message: string}>(`${this.baseEndpoint}/logout`);
+  }
+
+  public async refreshToken(refreshToken: string): Promise<UserResponse> {
+    return apiClient.post<UserResponse>(`${this.baseEndpoint}/refresh-token`, { refreshToken });
   }
 }
 

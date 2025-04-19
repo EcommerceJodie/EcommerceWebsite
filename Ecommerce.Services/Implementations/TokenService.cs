@@ -1,5 +1,6 @@
+using Ecommerce.Core.Interfaces.Repositories;
 using Ecommerce.Core.Models.Entities;
-using Ecommerce.Services.Interfaces;
+using Ecommerce.Core.Interfaces.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
@@ -7,6 +8,7 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -15,13 +17,17 @@ namespace Ecommerce.Services.Implementations
     public class TokenService : ITokenService
     {
         private readonly IConfiguration _configuration;
+        private readonly IRedisRepository _redisRepository;
+        private const string RefreshTokenPrefix = "refresh_token:";
+        private const string UserIdPrefix = "user_id:";
 
-        public TokenService(IConfiguration configuration)
+        public TokenService(IConfiguration configuration, IRedisRepository redisRepository)
         {
             _configuration = configuration;
+            _redisRepository = redisRepository;
         }
 
-        public async Task<string> CreateTokenAsync(ApplicationUser user, IList<string> roles)
+        public async Task<(string accessToken, string refreshToken)> CreateTokenAsync(ApplicationUser user, IList<string> roles)
         {
             var claims = new List<Claim>
             {
@@ -54,7 +60,79 @@ namespace Ecommerce.Services.Implementations
                 signingCredentials: creds
             );
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+            var refreshToken = await GenerateRefreshTokenAsync();
+
+
+            await SaveRefreshTokenAsync(user.Id, refreshToken);
+
+            return (accessToken, refreshToken);
+        }
+
+        public async Task<string> GenerateRefreshTokenAsync()
+        {
+            var randomNumber = new byte[64];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            return Convert.ToBase64String(randomNumber);
+        }
+
+        public async Task<bool> SaveRefreshTokenAsync(string userId, string refreshToken, int expiryInDays = 7)
+        {
+
+            var refreshTokenKey = $"{RefreshTokenPrefix}{userId}";
+            var result1 = await _redisRepository.SetAsync(refreshTokenKey, refreshToken, TimeSpan.FromDays(expiryInDays));
+            
+
+            var userIdKey = $"{UserIdPrefix}{refreshToken}";
+            var result2 = await _redisRepository.SetAsync(userIdKey, userId, TimeSpan.FromDays(expiryInDays));
+            
+            return result1 && result2;
+        }
+
+        public async Task<bool> ValidateRefreshTokenAsync(string userId, string refreshToken)
+        {
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(refreshToken))
+                return false;
+
+
+            var key = $"{RefreshTokenPrefix}{userId}";
+            var storedToken = await _redisRepository.GetAsync(key);
+            
+
+            return storedToken == refreshToken;
+        }
+
+        public async Task<bool> DeleteRefreshTokenAsync(string userId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return false;
+                
+
+            var refreshTokenKey = $"{RefreshTokenPrefix}{userId}";
+            var refreshToken = await _redisRepository.GetAsync(refreshTokenKey);
+            
+            if (string.IsNullOrEmpty(refreshToken))
+                return true; 
+                
+
+            var userIdKey = $"{UserIdPrefix}{refreshToken}";
+            var result1 = await _redisRepository.DeleteAsync(userIdKey);
+            
+
+            var result2 = await _redisRepository.DeleteAsync(refreshTokenKey);
+            
+            return result1 && result2;
+        }
+
+        public async Task<string> GetUserIdFromRefreshTokenAsync(string refreshToken)
+        {
+            if (string.IsNullOrEmpty(refreshToken))
+                return null;
+                
+
+            var userIdKey = $"{UserIdPrefix}{refreshToken}";
+            return await _redisRepository.GetAsync(userIdKey);
         }
 
         public ClaimsPrincipal ValidateToken(string token)

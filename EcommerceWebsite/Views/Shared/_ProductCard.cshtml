@@ -1,0 +1,87 @@
+@model Ecommerce.Core.DTOs.ProductDto
+
+<div class="card h-100 product-card">
+    @if (Model.DiscountPercentage > 0)
+    {
+        <div class="discount-badge">-@Model.DiscountPercentage%</div>
+    }
+    <a asp-controller="Product" asp-action="Detail" asp-route-id="@Model.Id" class="product-link">
+        <div class="product-image-container">
+            @if (Model.ImageUrlsWithDetails != null && Model.ImageUrlsWithDetails.Count > 0)
+            {
+                var mainImage = Model.ImageUrlsWithDetails.FirstOrDefault(img => img.IsMainImage) 
+                            ?? Model.ImageUrlsWithDetails.FirstOrDefault();
+                
+                if (mainImage != null)
+                {
+                    <img src="@mainImage.ImageUrl" class="product-image" alt="@(mainImage.ImageAltText ?? Model.ProductName)">
+                }
+                else
+                {
+                    <div class="no-image-placeholder">
+                        <i class="bi bi-image"></i>
+                    </div>
+                }
+            }
+            else if (Model.ImageUrls != null && Model.ImageUrls.Count > 0)
+            {
+                <img src="@Model.ImageUrls.FirstOrDefault()" class="product-image" alt="@Model.ProductName">
+            }
+            else
+            {
+                <div class="no-image-placeholder">
+                    <i class="bi bi-image"></i>
+                </div>
+            }
+        </div>
+        <div class="card-body">
+            <h5 class="card-title product-title">
+                @Model.ProductName
+            </h5>
+            <div class="rating">
+                @for (int i = 1; i <= 5; i++)
+                {
+                    if (i <= Math.Round(Model.AverageRating))
+                    {
+                        <i class="bi bi-star-fill"></i>
+                    }
+                    else
+                    {
+                        <i class="bi bi-star"></i>
+                    }
+                }
+                <span class="rating-count">(@Model.RatingCount)</span>
+            </div>
+            
+            @if (Model.StockStatus == "Sắp hết hàng")
+            {
+                <div class="stock-status low-stock">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i><span>@Model.StockStatus</span>
+                </div>
+            }
+            else if (Model.StockStatus == "Hết hàng")
+            {
+                <div class="stock-status out-of-stock">
+                    <i class="bi bi-x-circle-fill me-1"></i><span>@Model.StockStatus</span>
+                </div>
+            }
+            
+            <div class="product-price">
+                @if (Model.DiscountPercentage > 0)
+                {
+                    <span class="current-price">@Model.DisplayPrice.ToString("N0")đ</span>
+                    <span class="original-price">@Model.OriginalPrice.ToString("N0")đ</span>
+                }
+                else
+                {
+                    <span class="current-price">@Model.OriginalPrice.ToString("N0")đ</span>
+                }
+            </div>
+        </div>
+    </a>
+    <div class="card-footer">
+        <button onclick="addToCart('@Model.Id', 1)" class="btn btn-primary btn-sm add-to-cart w-100" data-product-id="@Model.Id">
+            <i class="bi bi-cart-plus me-1"></i>Thêm vào giỏ
+        </button>
+    </div>
+</div> 

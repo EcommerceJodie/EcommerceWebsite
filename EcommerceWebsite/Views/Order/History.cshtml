@@ -1,0 +1,184 @@
+@model IEnumerable<Ecommerce.Core.DTOs.OrderDto>
+@using Ecommerce.Core.Models.Enums
+
+@{
+    ViewData["Title"] = "Lịch sử đơn hàng";
+
+    // Hàm helper lấy class CSS theo trạng thái đơn hàng
+    string GetStatusBadgeClass(OrderStatus status)
+    {
+        return status switch
+        {
+            OrderStatus.Pending => "bg-warning text-dark",
+            OrderStatus.Processing => "bg-info text-dark",
+            OrderStatus.Shipped => "bg-primary",
+            OrderStatus.Delivered => "bg-success",
+            OrderStatus.Cancelled => "bg-danger",
+            OrderStatus.Returned => "bg-secondary",
+            OrderStatus.Refunded => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
+
+    // Hàm helper hiển thị tên trạng thái
+    string GetStatusName(OrderStatus status)
+    {
+        return status switch
+        {
+            OrderStatus.Pending => "Chờ xác nhận",
+            OrderStatus.Processing => "Đang xử lý",
+            OrderStatus.Shipped => "Đang giao hàng",
+            OrderStatus.Delivered => "Đã giao hàng",
+            OrderStatus.Cancelled => "Đã hủy",
+            OrderStatus.Returned => "Đã trả hàng",
+            OrderStatus.Refunded => "Đã hoàn tiền",
+            _ => status.ToString()
+        };
+    }
+}
+
+<div class="container">
+    <h1 class="my-4">@ViewData["Title"]</h1>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="bi bi-cart-x" style="font-size: 5rem; color: #ccc;"></i>
+            <h3 class="mt-3">Bạn chưa có đơn hàng nào</h3>
+            
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-warning mt-3">
+                    <p>Có thể do một trong các nguyên nhân sau:</p>
+                    <ul class="text-start mb-0">
+                        <li>Chưa cập nhật đầy đủ thông tin cá nhân</li>
+                        <li>Đơn hàng được đặt bằng tài khoản khác</li>
+                        <li>Quá trình thanh toán chưa hoàn tất</li>
+                        <li>Lỗi hệ thống trong quá trình xử lý đơn hàng</li>
+                    </ul>
+                </div>
+            }
+            
+            <p class="text-muted">Hãy tiếp tục mua sắm để tạo đơn hàng mới.</p>
+            <div class="mt-3">
+                <a asp-controller="Home" asp-action="Index" class="btn btn-primary me-2">
+                    <i class="bi bi-cart-plus me-2"></i>Tiếp tục mua sắm
+                </a>
+                <a asp-controller="Account" asp-action="Profile" class="btn btn-outline-secondary">
+                    <i class="bi bi-person me-2"></i>Cập nhật thông tin cá nhân
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Đơn hàng của bạn</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Mã đơn hàng</th>
+                                        <th>Ngày đặt</th>
+                                        <th>Tổng tiền</th>
+                                        <th>Phương thức thanh toán</th>
+                                        <th>Trạng thái</th>
+                                        <th>Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var order in Model)
+                                    {
+                                        <tr>
+                                            <td>@order.OrderNumber</td>
+                                            <td>@order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                            <td>@order.TotalAmount.ToString("N0") ₫</td>
+                                            <td>@order.PaymentMethod</td>
+                                            <td>
+                                                <span class="badge @GetStatusBadgeClass(order.OrderStatus)">
+                                                    @GetStatusName(order.OrderStatus)
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <a asp-action="Details" asp-route-id="@order.Id" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-eye"></i> Xem
+                                                </a>
+                                                @if (order.OrderStatus == OrderStatus.Pending || order.OrderStatus == OrderStatus.Processing)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                            data-bs-toggle="modal" data-bs-target="#cancelModal" 
+                                                            data-order-id="@order.Id" data-order-number="@order.OrderNumber">
+                                                        <i class="bi bi-x-circle"></i> Hủy
+                                                    </button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Modal Hủy đơn hàng -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cancelModalLabel">Xác nhận hủy đơn hàng</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Bạn có chắc chắn muốn hủy đơn hàng <strong id="orderNumber"></strong> không?</p>
+                <p class="text-muted">Lưu ý: Hành động này không thể hoàn tác.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy bỏ</button>
+                <form id="cancelForm" method="post" asp-action="Cancel">
+                    <input type="hidden" name="id" id="orderId" />
+                    <button type="submit" class="btn btn-danger">Xác nhận hủy</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#cancelModal').on('show.bs.modal', function (event) {
+                var button = $(event.relatedTarget);
+                var orderId = button.data('order-id');
+                var orderNumber = button.data('order-number');
+                
+                $('#orderId').val(orderId);
+                $('#orderNumber').text(orderNumber);
+            });
+        });
+    </script>
+} 

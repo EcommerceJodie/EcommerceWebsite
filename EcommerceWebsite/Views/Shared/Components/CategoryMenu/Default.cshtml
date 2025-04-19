@@ -1,0 +1,167 @@
+@model List<Ecommerce.Core.DTOs.MenuConfigDto>
+
+<div class="category-container">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-3 category-menu">
+                <button class="category-button">
+                    <i class="bi bi-list me-2"></i> Danh mục
+                </button>
+                <div class="category-dropdown">
+                    <div class="category-sidebar">
+                        @foreach (var menuItem in Model)
+                        {
+                            var menuName = !string.IsNullOrEmpty(menuItem.CustomName) ? menuItem.CustomName : menuItem.CategoryName;
+                            var hasChildren = menuItem.Children != null && menuItem.Children.Any();
+                            var menuIcon = !string.IsNullOrEmpty(menuItem.Icon) ? menuItem.Icon : "bi bi-box";
+                            
+                            <div class="category-item @(hasChildren ? "has-children" : "")">
+                                <a href="/Category/Products/@menuItem.CategoryId" class="category-link">
+                                    <i class="@menuIcon me-2"></i>
+                                    <span>@menuName</span>
+                                    @if (hasChildren)
+                                    {
+                                        <i class="bi bi-chevron-right ms-auto"></i>
+                                    }
+                                </a>
+                                
+                                @if (hasChildren)
+                                {
+                                    <div class="subcategory-panel">
+                                        <div class="row">
+                                            @foreach (var group in menuItem.Children.OrderBy(c => c.DisplayOrder).Select((item, index) => new { Item = item, Index = index }).GroupBy(x => x.Index / 6))
+                                            {
+                                                <div class="col-md-4">
+                                                    @foreach (var subcategory in group.Select(g => g.Item))
+                                                    {
+                                                        <div class="subcategory-item">
+                                                            <a href="/Category/Products/@subcategory.CategoryId" class="subcategory-heading">
+                                                                @(!string.IsNullOrEmpty(subcategory.CustomName) ? subcategory.CustomName : subcategory.CategoryName)
+                                                            </a>
+                                                            
+                                                            @if (subcategory.Children != null && subcategory.Children.Any())
+                                                            {
+                                                                <div class="subcategory-children">
+                                                                    @foreach (var childItem in subcategory.Children.OrderBy(c => c.DisplayOrder).Take(6))
+                                                                    {
+                                                                        <a href="/Category/Products/@childItem.CategoryId" class="subcategory-child">
+                                                                            @(!string.IsNullOrEmpty(childItem.CustomName) ? childItem.CustomName : childItem.CategoryName)
+                                                                        </a>
+                                                                    }
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .category-container {
+        background-color: #fff;
+        border-bottom: 1px solid #eee;
+        padding: 0;
+    }
+    
+    .category-sidebar {
+        background-color: #fff;
+        border: 1px solid #eee;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .category-item {
+        position: relative;
+        border-bottom: 1px solid #f5f5f5;
+    }
+    
+    .category-item:last-child {
+        border-bottom: none;
+    }
+    
+    .category-link {
+        display: flex;
+        align-items: center;
+        padding: 10px 15px;
+        color: #333;
+        text-decoration: none;
+        font-size: 14px;
+        position: relative;
+    }
+    
+    .category-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .category-item.has-children:hover .subcategory-panel {
+        display: block;
+    }
+    
+    .subcategory-panel {
+        display: none;
+        position: absolute;
+        left: 100%;
+        top: 0;
+        width: 800px;
+        background-color: #fff;
+        border: 1px solid #eee;
+        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        z-index: 1001;
+        min-height: 400px;
+    }
+    
+    .subcategory-item {
+        margin-bottom: 15px;
+    }
+    
+    .subcategory-heading {
+        display: block;
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 8px;
+        text-decoration: none;
+    }
+    
+    .subcategory-heading:hover {
+        color: #e61a23;
+    }
+    
+    .subcategory-children {
+        display: flex;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+    
+    .subcategory-child {
+        width: 50%;
+        padding: 3px 0;
+        font-size: 13px;
+        color: #666;
+        text-decoration: none;
+    }
+    
+    .subcategory-child:hover {
+        color: #e61a23;
+    }
+    
+    /* Nav links */
+    .nav-link {
+        color: #333;
+        font-weight: 500;
+        padding: 15px;
+    }
+    
+    .nav-link:hover {
+        color: #e61a23;
+    }
+</style>

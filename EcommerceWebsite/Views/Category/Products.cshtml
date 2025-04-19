@@ -1,0 +1,294 @@
+@model PagedResultDto<ProductDto>
+@{
+    var category = ViewBag.Category as CategoryDto;
+    ViewData["Title"] = $"Sản phẩm trong danh mục {category.CategoryName}";
+}
+
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Trang chủ</a></li>
+            <li class="breadcrumb-item"><a asp-controller="Category" asp-action="Index">Danh mục</a></li>
+            <li class="breadcrumb-item"><a asp-controller="Category" asp-action="Details" asp-route-id="@category.Id">@category.CategoryName</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Sản phẩm</li>
+        </ol>
+    </nav>
+
+    <div class="category-header">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h1 class="category-title">@category.CategoryName</h1>
+                <p class="category-description">@(string.IsNullOrEmpty(category.CategoryDescription) ? "Danh sách sản phẩm trong danh mục" : category.CategoryDescription)</p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                @if (!string.IsNullOrEmpty(category.CategoryImageUrl))
+                {
+                    <img src="@category.CategoryImageUrl" class="category-thumbnail" alt="@category.CategoryName">
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="filter-section">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="results-count">
+                    Hiển thị <strong>@Model.Items.Count</strong> trên tổng số <strong>@Model.TotalCount</strong> sản phẩm
+                </div>
+            </div>
+            <div class="col-md-6">
+                <form method="get" class="search-sort-form">
+                    <input type="hidden" name="id" value="@ViewBag.CategoryId" />
+                    <input type="hidden" name="page" value="1" />
+                    <input type="hidden" name="pageSize" value="@ViewBag.PageSize" />
+                    
+                    <div class="row g-2">
+                        <div class="col-md-7">
+                            <div class="input-group">
+                                <input type="text" class="form-control search-input" name="searchTerm" value="@ViewBag.SearchTerm" placeholder="Tìm kiếm sản phẩm..." aria-label="Tìm kiếm">
+                                <button class="btn search-button" type="submit"><i class="bi bi-search"></i></button>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="input-group">
+                                <label class="input-group-text sort-label" for="sortBy">Sắp xếp</label>
+                                <select class="form-select sort-select" id="sortBy" name="sortBy" onchange="this.form.submit()">
+                                    <option value="CreatedAt">Mới nhất</option>
+                                    <option value="name">Tên</option>
+                                    <option value="price">Giá</option>
+                                </select>
+                                <select class="form-select sort-select" id="sortDesc" name="sortDesc" onchange="this.form.submit()">
+                                    <option value="true">Giảm dần</option>
+                                    <option value="false">Tăng dần</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @if (!Model.Items.Any())
+    {
+        <div class="empty-result">
+            <div class="empty-icon">
+                <i class="bi bi-search"></i>
+            </div>
+            <h3>Không tìm thấy sản phẩm</h3>
+            <p>Không tìm thấy sản phẩm nào trong danh mục này. Vui lòng thử lại với từ khóa khác hoặc quay lại sau.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3 mb-4">
+            @foreach (var product in Model.Items)
+            {
+                <div class="col">
+                    <partial name="_ProductCard" model="product" />
+                </div>
+            }
+        </div>
+
+        <partial name="_Pagination" />
+    }
+</div>
+
+<style>
+    .category-header {
+        padding: 20px 0 30px;
+        margin-bottom: 30px;
+        border-bottom: 1px solid #f0f0f0;
+        position: relative;
+    }
+    
+    .category-header:after {
+        content: '';
+        position: absolute;
+        bottom: -1px;
+        left: 0;
+        width: 100px;
+        height: 3px;
+        background: linear-gradient(to right, #e61a23, #FF9017);
+    }
+    
+    .category-title {
+        color: #333;
+        font-weight: 700;
+        margin-bottom: 10px;
+        position: relative;
+    }
+    
+    .category-description {
+        color: #666;
+        font-size: 1rem;
+    }
+    
+    .category-thumbnail {
+        max-width: 120px;
+        max-height: 120px;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        padding: 5px;
+        background-color: #fff;
+    }
+    
+    .filter-section {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 25px;
+        border: 1px solid #eee;
+    }
+    
+    .results-count {
+        margin-top: 8px;
+        color: #555;
+        font-size: 0.95rem;
+    }
+    
+    .results-count strong {
+        color: #e61a23;
+    }
+    
+    .search-sort-form {
+        margin-bottom: 0;
+    }
+    
+    .search-input {
+        border-radius: 4px 0 0 4px;
+        border: 1px solid #ddd;
+        border-right: none;
+        padding: 8px 15px;
+        transition: all 0.3s;
+    }
+    
+    .search-input:focus {
+        box-shadow: none;
+        border-color: #e61a23;
+    }
+    
+    .search-button {
+        background-color: #e61a23;
+        color: white;
+        border: none;
+        border-radius: 0 4px 4px 0;
+    }
+    
+    .search-button:hover {
+        background-color: #d01219;
+        color: white;
+    }
+    
+    .sort-label {
+        background-color: #e61a23;
+        color: white;
+        border: none;
+        font-weight: 500;
+    }
+    
+    .sort-select {
+        border: 1px solid #ddd;
+        transition: all 0.3s;
+    }
+    
+    .sort-select:focus {
+        box-shadow: none;
+        border-color: #e61a23;
+    }
+    
+    .empty-result {
+        text-align: center;
+        padding: 40px 20px;
+        background-color: #f9f9f9;
+        border-radius: 8px;
+        margin: 30px 0;
+    }
+    
+    .empty-icon {
+        font-size: 3rem;
+        color: #ccc;
+        margin-bottom: 20px;
+    }
+    
+    .empty-result h3 {
+        color: #555;
+        margin-bottom: 10px;
+    }
+    
+    .empty-result p {
+        color: #777;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+    
+    .breadcrumb {
+        padding: 10px 0;
+        margin-bottom: 20px;
+        background-color: transparent;
+    }
+    
+    .breadcrumb-item a {
+        color: #e61a23;
+        text-decoration: none;
+        transition: color 0.2s;
+    }
+    
+    .breadcrumb-item a:hover {
+        color: #FF9017;
+    }
+    
+    .breadcrumb-item.active {
+        color: #555;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        color: #ccc;
+    }
+    
+    @@media (max-width: 768px) {
+        .search-sort-form .row {
+            margin-bottom: 10px;
+        }
+        
+        .category-header {
+            padding: 15px 0 20px;
+            margin-bottom: 20px;
+        }
+        
+        .filter-section {
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+    }
+</style>
+
+<script>
+    // Thiết lập giá trị đã chọn cho dropdown SortBy
+    document.addEventListener('DOMContentLoaded', function() {
+        // Thiết lập SortBy
+        var sortBySelect = document.getElementById('sortBy');
+        var sortByValue = '@ViewBag.SortBy';
+        if (sortBySelect && sortByValue) {
+            for (var i = 0; i < sortBySelect.options.length; i++) {
+                if (sortBySelect.options[i].value === sortByValue) {
+                    sortBySelect.options[i].selected = true;
+                    break;
+                }
+            }
+        }
+        
+        // Thiết lập SortDesc
+        var sortDescSelect = document.getElementById('sortDesc');
+        var sortDescValue = @(ViewBag.SortDesc ? "true" : "false");
+        if (sortDescSelect) {
+            for (var i = 0; i < sortDescSelect.options.length; i++) {
+                if (sortDescSelect.options[i].value === sortDescValue.toString()) {
+                    sortDescSelect.options[i].selected = true;
+                    break;
+                }
+            }
+        }
+    });
+</script> 

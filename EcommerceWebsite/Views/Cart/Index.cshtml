@@ -1,0 +1,324 @@
+@model Ecommerce.Core.DTOs.CartDto
+
+@{
+    ViewData["Title"] = "Giỏ hàng";
+}
+
+<div class="container py-4">
+    <h2 class="mb-4 fw-bold">Giỏ hàng của bạn</h2>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success">
+            @TempData["SuccessMessage"]
+        </div>
+    }
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="bi bi-cart-x" style="font-size: 5rem; color: #ccc;"></i>
+            </div>
+            <h3>Giỏ hàng của bạn đang trống</h3>
+            <p class="mt-3 text-muted">Tiếp tục mua sắm để thêm sản phẩm vào giỏ hàng.</p>
+            <a asp-controller="Home" asp-action="Index" class="btn btn-primary mt-3 px-4 py-2">Tiếp tục mua sắm</a>
+        </div>
+    }
+    else
+    {
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-header bg-white p-3 border-0 border-bottom">
+                <div class="row align-items-center fw-medium text-secondary">
+                    <div class="col-1">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="selectAll">
+                            <label class="form-check-label" for="selectAll"></label>
+                        </div>
+                    </div>
+                    <div class="col-5">Sản Phẩm</div>
+                    <div class="col-2 text-center">Đơn Giá</div>
+                    <div class="col-2 text-center">Số Lượng</div>
+                    <div class="col-1 text-center">Số Tiền</div>
+                    <div class="col-1 text-center">Thao Tác</div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <!-- Shop section -->
+                <div class="shop-section border-bottom py-3">
+                    <div class="px-3 py-2 bg-light d-flex align-items-center">
+                        <div class="form-check">
+                            <input class="form-check-input shop-select" type="checkbox">
+                        </div>
+                        <span class="ms-2 fw-medium"><i class="bi bi-shop me-1"></i> Shop</span>
+                        <span class="ms-2 badge bg-danger">Yêu thích</span>
+                    </div>
+                    
+                    @foreach (var item in Model.Items)
+                    {
+                        <div class="cart-item d-flex align-items-center p-3 border-top">
+                            <div class="col-1">
+                                <div class="form-check">
+                                    <input class="form-check-input product-select" type="checkbox" name="productId" value="@item.ProductId" 
+                                           data-price="@(item.DiscountPrice.HasValue ? item.DiscountPrice.Value : item.UnitPrice)" 
+                                           data-quantity="@item.Quantity">
+                                </div>
+                            </div>
+                            <div class="col-5 d-flex align-items-center">
+                                <div class="product-image me-3">
+                                    @if (!string.IsNullOrEmpty(item.ProductImageUrl))
+                                    {
+                                        <img src="@item.ProductImageUrl" class="img-thumbnail" alt="@item.ProductName" style="width: 80px; height: 80px; object-fit: cover;">
+                                    }
+                                    else
+                                    {
+                                        <div class="bg-light text-center p-2" style="width: 80px; height: 80px;">No image</div>
+                                    }
+                                </div>
+                                <div class="product-info">
+                                    <div class="product-name text-truncate mb-1" style="max-width: 300px;">
+                                        <a asp-controller="Product" asp-action="Detail" asp-route-id="@item.ProductId" class="text-decoration-none text-dark">
+                                            @item.ProductName
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-2 text-center">
+                                @if (item.DiscountPrice.HasValue && item.DiscountPrice.Value > 0)
+                                {
+                                    <div class="text-decoration-line-through text-muted small">₫@item.UnitPrice.ToString("N0")</div>
+                                    <div class="text-danger">₫@item.DiscountPrice.Value.ToString("N0")</div>
+                                }
+                                else
+                                {
+                                    <div>₫@item.UnitPrice.ToString("N0")</div>
+                                }
+                            </div>
+                            <div class="col-2 d-flex justify-content-center">
+                                <form asp-action="UpdateQuantity" method="post" class="d-flex align-items-center">
+                                    <input type="hidden" name="productId" value="@item.ProductId">
+                                    <div class="input-group input-group-sm" style="width: 120px;">
+                                        <button type="button" class="btn btn-outline-secondary quantity-btn" onclick="updateQuantity(this, -1)">-</button>
+                                        <input type="number" name="quantity" value="@item.Quantity" min="1" class="form-control text-center quantity-input">
+                                        <button type="button" class="btn btn-outline-secondary quantity-btn" onclick="updateQuantity(this, 1)">+</button>
+                                    </div>
+                                    <button type="submit" class="btn btn-sm btn-outline-primary ms-2 update-btn" style="display: none;">
+                                        <i class="bi bi-check"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            <div class="col-1 text-center text-danger fw-medium">
+                                ₫@item.Subtotal.ToString("N0")
+                            </div>
+                            <div class="col-1 text-center">
+                                <form asp-action="RemoveItem" method="post">
+                                    <input type="hidden" name="productId" value="@item.ProductId">
+                                    <button type="submit" class="btn btn-sm btn-link text-decoration-none text-danger">
+                                        Xóa
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="card-footer bg-white border-0 p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <div class="form-check me-3">
+                            <input class="form-check-input" type="checkbox" id="selectAll2">
+                            <label class="form-check-label" for="selectAll2">Chọn Tất Cả (@Model.Items.Count)</label>
+                        </div>
+                        <form asp-action="ClearCart" method="post" class="me-3">
+                            <button type="submit" class="btn btn-link text-decoration-none text-danger p-0">
+                                Xóa
+                            </button>
+                        </form>
+                        <button class="btn btn-link text-decoration-none p-0">Lưu vào mục Đã thích</button>
+                    </div>
+                    
+                    <div class="d-flex align-items-center">
+                        <div class="me-4">
+                            <span class="me-2">Tổng thanh toán (<span id="selectedCount">0</span> sản phẩm):</span>
+                            <span class="text-danger fs-4 fw-medium">₫<span id="totalSelectedAmount">0</span></span>
+                        </div>
+                        <button id="checkoutSelectedBtn" class="btn btn-danger px-4 py-2" disabled>Mua Hàng</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        
+    }
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Tính toán tổng tiền khi trang tải xong
+            calculateSelectedTotal();
+            
+            // Handle "Select All" checkbox
+            $('#selectAll, #selectAll2').on('change', function() {
+                let isChecked = $(this).prop('checked');
+                $('.product-select, .shop-select, #selectAll, #selectAll2').prop('checked', isChecked);
+                calculateSelectedTotal();
+            });
+            
+            // Handle shop selection
+            $('.shop-select').on('change', function() {
+                let isChecked = $(this).prop('checked');
+                $(this).closest('.shop-section').find('.product-select').prop('checked', isChecked);
+                updateSelectAllStatus();
+                calculateSelectedTotal();
+            });
+            
+            // Handle individual product selection
+            $('.product-select').on('change', function() {
+                updateSelectAllStatus();
+                calculateSelectedTotal();
+                
+                // Check if all products in a shop are selected
+                let shopSection = $(this).closest('.shop-section');
+                let allProducts = shopSection.find('.product-select').length;
+                let selectedProducts = shopSection.find('.product-select:checked').length;
+                
+                shopSection.find('.shop-select').prop('checked', allProducts === selectedProducts);
+            });
+            
+            // Update "Select All" checkbox status
+            function updateSelectAllStatus() {
+                let allProducts = $('.product-select').length;
+                let selectedProducts = $('.product-select:checked').length;
+                
+                $('#selectAll, #selectAll2').prop('checked', allProducts === selectedProducts && allProducts > 0);
+            }
+            
+            // Tính toán tổng tiền của các sản phẩm được chọn
+            function calculateSelectedTotal() {
+                let totalAmount = 0;
+                let selectedCount = 0;
+                
+                $('.product-select:checked').each(function() {
+                    const price = parseFloat($(this).data('price'));
+                    const quantity = parseInt($(this).data('quantity'));
+                    
+                    totalAmount += price * quantity;
+                    selectedCount += quantity;
+                });
+                
+                // Cập nhật UI
+                $('#totalSelectedAmount').text(formatCurrency(totalAmount));
+                $('#selectedCount').text(selectedCount);
+                
+                // Enable/disable nút mua hàng
+                $('#checkoutSelectedBtn').prop('disabled', selectedCount === 0);
+                
+                // Lưu trữ dữ liệu vào session để dùng cho trang thanh toán
+                saveSelectedItemsToSession();
+            }
+            
+            // Định dạng số tiền
+            function formatCurrency(amount) {
+                return new Intl.NumberFormat('vi-VN').format(amount);
+            }
+            
+            // Lưu dữ liệu các sản phẩm được chọn để thanh toán
+            function saveSelectedItemsToSession() {
+                const selectedIds = [];
+                $('.product-select:checked').each(function() {
+                    selectedIds.push($(this).val());
+                });
+                
+                // Lưu vào localStorage tạm thời
+                localStorage.setItem('selectedCartItems', JSON.stringify(selectedIds));
+            }
+            
+            // Handle checkout button
+            $('#checkoutSelectedBtn').on('click', function(e) {
+                e.preventDefault();
+                const selectedIds = [];
+                
+                $('.product-select:checked').each(function() {
+                    selectedIds.push($(this).val());
+                });
+                
+                if (selectedIds.length === 0) {
+                    alert('Vui lòng chọn ít nhất một sản phẩm để mua hàng');
+                    return;
+                }
+                
+                // Tạo form ẩn để gửi dữ liệu
+                const form = $('<form action="/Checkout/Index" method="post"></form>');
+                
+                selectedIds.forEach(id => {
+                    form.append(`<input type="hidden" name="productIds" value="${id}">`);
+                });
+                
+                $('body').append(form);
+                form.submit();
+            });
+        });
+        
+        function updateQuantity(btn, change) {
+            const input = btn.parentNode.querySelector('.quantity-input');
+            const updateBtn = btn.parentNode.parentNode.querySelector('.update-btn');
+            let value = parseInt(input.value) + change;
+            
+            if (value < 1) value = 1;
+            input.value = value;
+            updateBtn.style.display = 'inline-block';
+            
+            // Cập nhật data-quantity cho checkbox
+            const checkbox = $(btn).closest('.cart-item').find('.product-select');
+            checkbox.data('quantity', value);
+            
+            // Nếu sản phẩm đang được chọn, cập nhật tổng tiền
+            if (checkbox.prop('checked')) {
+                calculateSelectedTotal();
+            }
+        }
+
+        // Hiển thị nút cập nhật khi người dùng thay đổi số lượng trực tiếp
+        document.querySelectorAll('.quantity-input').forEach(input => {
+            input.addEventListener('change', function() {
+                const updateBtn = this.parentNode.parentNode.querySelector('.update-btn');
+                updateBtn.style.display = 'inline-block';
+                
+                if (parseInt(this.value) < 1) {
+                    this.value = 1;
+                }
+                
+                // Cập nhật data-quantity cho checkbox
+                const checkbox = $(this).closest('.cart-item').find('.product-select');
+                checkbox.data('quantity', parseInt(this.value));
+                
+                // Nếu sản phẩm đang được chọn, cập nhật tổng tiền
+                if (checkbox.prop('checked')) {
+                    calculateSelectedTotal();
+                }
+            });
+        });
+        
+        // Đảm bảo hàm calculateSelectedTotal có sẵn trong scope toàn cục
+        function calculateSelectedTotal() {
+            let totalAmount = 0;
+            let selectedCount = 0;
+            
+            $('.product-select:checked').each(function() {
+                const price = parseFloat($(this).data('price'));
+                const quantity = parseInt($(this).data('quantity'));
+                
+                totalAmount += price * quantity;
+                selectedCount += quantity;
+            });
+            
+            // Cập nhật UI
+            $('#totalSelectedAmount').text(new Intl.NumberFormat('vi-VN').format(totalAmount));
+            $('#selectedCount').text(selectedCount);
+            
+            // Enable/disable nút mua hàng
+            $('#checkoutSelectedBtn').prop('disabled', selectedCount === 0);
+        }
+    </script>
+} 

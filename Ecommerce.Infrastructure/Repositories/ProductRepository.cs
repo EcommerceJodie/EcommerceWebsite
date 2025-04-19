@@ -19,6 +19,13 @@ namespace Ecommerce.Infrastructure.Repositories
             _context = context;
         }
 
+        public override async Task<Product> GetByIdAsync(Guid id)
+        {
+            return await _context.Products
+                .Include(p => p.ProductImages)
+                .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted);
+        }
+
         public async Task<IEnumerable<Product>> GetProductsByCategoryAsync(Guid categoryId)
         {
             return await _context.Products

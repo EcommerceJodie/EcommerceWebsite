@@ -66,7 +66,7 @@ namespace EcommerceWebsite.Middlewares
 
                 default:
                     context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                    // In môi trường phát triển, có thể bao gồm thêm thông tin lỗi chi tiết
+
                     if (context.Request.Host.Host.Contains("localhost") || context.Request.Host.Host.Contains("127.0.0.1"))
                     {
                         response.Details = new

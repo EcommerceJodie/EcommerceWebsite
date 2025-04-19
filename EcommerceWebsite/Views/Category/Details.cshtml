@@ -1,0 +1,77 @@
+@model Ecommerce.Core.DTOs.CategoryDto
+
+@{
+    ViewData["Title"] = Model.CategoryName;
+}
+
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Trang chủ</a></li>
+            <li class="breadcrumb-item"><a asp-controller="Category" asp-action="Index">Danh mục</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@Model.CategoryName</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            @if (!string.IsNullOrEmpty(Model.CategoryImageUrl))
+            {
+                <img src="@Model.CategoryImageUrl" class="img-fluid rounded category-detail-img" alt="@Model.CategoryName">
+            }
+            else
+            {
+                <div class="category-placeholder d-flex align-items-center justify-content-center rounded">
+                    <i class="bi bi-folder text-muted" style="font-size: 6rem;"></i>
+                </div>
+            }
+        </div>
+        <div class="col-md-8">
+            <h1>@Model.CategoryName</h1>
+            <p class="lead">@(string.IsNullOrEmpty(Model.CategoryDescription) ? "Không có mô tả" : Model.CategoryDescription)</p>
+            <hr />
+            <p>
+                <strong>Mã danh mục:</strong> @Model.Id
+            </p>
+            <p>
+                <strong>Slug:</strong> @Model.CategorySlug
+            </p>
+            <p>
+                <strong>Ngày tạo:</strong> @Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+            </p>
+            @if (Model.UpdatedAt.HasValue)
+            {
+                <p>
+                    <strong>Cập nhật lần cuối:</strong> @Model.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm")
+                </p>
+            }
+            <div class="mt-4">
+                <a asp-controller="Category" asp-action="Products" asp-route-id="@Model.Id" class="btn btn-primary">
+                    <i class="bi bi-grid"></i> Xem tất cả sản phẩm
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <h3>Sản phẩm nổi bật trong danh mục này</h3>
+            <div class="alert alert-info">
+                Chưa có sản phẩm nào trong danh mục này. Vui lòng xem <a asp-controller="Category" asp-action="Products" asp-route-id="@Model.Id">tất cả sản phẩm</a>.
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .category-detail-img {
+        max-height: 400px;
+        width: 100%;
+        object-fit: cover;
+    }
+    
+    .category-placeholder {
+        height: 300px;
+        background-color: #f8f9fa;
+    }
+</style> 
