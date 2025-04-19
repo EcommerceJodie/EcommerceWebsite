@@ -2,6 +2,7 @@ using Ecommerce.Core.Interfaces.Repositories;
 using Ecommerce.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -20,9 +21,14 @@ namespace Ecommerce.Infrastructure.Repositories
 
         public IQueryable<T> Ts => _dbSet;
 
-        public async Task<T> GetByIdAsync(Guid id)
+        public virtual async Task<T> GetByIdAsync(Guid id)
         {
             return await _dbSet.FindAsync(id);
+        }
+
+        public async Task<IEnumerable<T>> GetAllAsync()
+        {
+            return await _dbSet.ToListAsync();
         }
 
         public void Add(T entity)

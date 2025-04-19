@@ -1,0 +1,46 @@
+@model IEnumerable<Ecommerce.Core.DTOs.CategoryDto>
+
+@{
+    ViewData["Title"] = "Danh mục sản phẩm";
+}
+
+<div class="container">
+    <h1 class="my-4">Danh mục sản phẩm</h1>
+    
+    <div class="row">
+        @foreach (var category in Model)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    @if (!string.IsNullOrEmpty(category.CategoryImageUrl))
+                    {
+                        <img src="@category.CategoryImageUrl" class="card-img-top category-img" alt="@category.CategoryName">
+                    }
+                    else
+                    {
+                        <div class="card-img-top category-placeholder d-flex align-items-center justify-content-center">
+                            <i class="bi bi-folder text-muted" style="font-size: 4rem;"></i>
+                        </div>
+                    }
+                    <div class="card-body">
+                        <h5 class="card-title">@category.CategoryName</h5>
+                        <p class="card-text">@(string.IsNullOrEmpty(category.CategoryDescription) ? "Không có mô tả" : category.CategoryDescription)</p>
+                        <a asp-controller="Category" asp-action="Details" asp-route-id="@category.Id" class="btn btn-primary">Xem chi tiết</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .category-img {
+        height: 200px;
+        object-fit: cover;
+    }
+    
+    .category-placeholder {
+        height: 200px;
+        background-color: #f8f9fa;
+    }
+</style> 

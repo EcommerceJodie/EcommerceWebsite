@@ -14,10 +14,10 @@ namespace Ecommerce.Infrastructure.Data.Seeds
             var roleManager = serviceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
             var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-            // Tạo các role mặc định
+
             await CreateRolesAsync(roleManager);
 
-            // Tạo tài khoản admin mặc định
+
             await CreateAdminUserAsync(userManager);
         }
 
@@ -83,7 +83,7 @@ namespace Ecommerce.Infrastructure.Data.Seeds
                 {
                     await userManager.AddToRoleAsync(user, "Customer");
 
-                    // Tạo Customer tương ứng
+
                     var customer = new Customer
                     {
                         FirstName = user.FirstName,

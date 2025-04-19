@@ -7,24 +7,27 @@ const CategoryList: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [showActiveOnly, setShowActiveOnly] = useState<boolean>(false);
+
+  const fetchCategories = async (activeOnly: boolean = false) => {
+    try {
+      setLoading(true);
+      const data = activeOnly
+        ? await categoriesApiService.getActive()
+        : await categoriesApiService.getAll();
+      setCategories(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Có lỗi xảy ra khi tải danh sách danh mục');
+      console.error('Lỗi khi tải danh mục:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        setLoading(true);
-        const data = await categoriesApiService.getAll();
-        setCategories(data);
-        setError(null);
-      } catch (err: any) {
-        setError(err.message || 'Có lỗi xảy ra khi tải danh sách danh mục');
-        console.error('Lỗi khi tải danh mục:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCategories();
-  }, []);
+    fetchCategories(showActiveOnly);
+  }, [showActiveOnly]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa danh mục này?')) {
@@ -38,6 +41,27 @@ const CategoryList: React.FC = () => {
       setError(err.message || 'Có lỗi xảy ra khi xóa danh mục');
       console.error('Lỗi khi xóa danh mục:', err);
     }
+  };
+
+  const downloadCategoryImage = async (id: string, categoryName: string) => {
+    try {
+      const presignedUrl = await categoriesApiService.getImagePresignedUrl(id, 5); // 5 phút
+      
+      // Tạo thẻ a ẩn để tải xuống
+      const link = document.createElement('a');
+      link.href = presignedUrl;
+      link.download = `${categoryName.replace(/\s+/g, '_')}.jpg`; // Đặt tên file tải về
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      setError(err.message || 'Có lỗi xảy ra khi tải hình ảnh');
+      console.error('Lỗi khi tải hình ảnh:', err);
+    }
+  };
+
+  const toggleActiveFilter = () => {
+    setShowActiveOnly(!showActiveOnly);
   };
 
   if (loading) {
@@ -61,15 +85,27 @@ const CategoryList: React.FC = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-gray-800">Quản lý danh mục</h1>
-        <Link
-          to="/categories/create"
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md flex items-center"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-          Thêm danh mục
-        </Link>
+        <div className="flex gap-4 items-center">
+          <button
+            className={`px-4 py-2 rounded text-sm ${
+              showActiveOnly
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-200 text-gray-800'
+            }`}
+            onClick={toggleActiveFilter}
+          >
+            {showActiveOnly ? 'Đang hiển thị danh mục hoạt động' : 'Hiển thị tất cả danh mục'}
+          </button>
+          <Link
+            to="/categories/create"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Thêm danh mục
+          </Link>
+        </div>
       </div>
 
       {categories.length === 0 ? (
@@ -82,7 +118,9 @@ const CategoryList: React.FC = () => {
             </div>
             <div className="ml-3">
               <p className="text-sm text-yellow-700">
-                Chưa có danh mục nào. Hãy tạo danh mục mới.
+                {showActiveOnly 
+                  ? 'Không có danh mục đang hoạt động nào. Hãy kích hoạt danh mục hoặc tạo danh mục mới.'
+                  : 'Chưa có danh mục nào. Hãy tạo danh mục mới.'}
               </p>
             </div>
           </div>
@@ -120,11 +158,21 @@ const CategoryList: React.FC = () => {
                 <tr key={category.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     {category.categoryImageUrl ? (
-                      <img 
-                        src={category.categoryImageUrl} 
-                        alt={category.categoryName}
-                        className="h-10 w-10 rounded-full object-cover"
-                      />
+                      <div className="relative group">
+                        <img 
+                          src={category.categoryImageUrl} 
+                          alt={category.categoryName}
+                          className="h-10 w-10 rounded-full object-cover cursor-pointer"
+                          onClick={() => downloadCategoryImage(category.id, category.categoryName)}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="bg-black bg-opacity-50 rounded-full p-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
                       <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -164,6 +212,7 @@ const CategoryList: React.FC = () => {
                       <Link 
                         to={`/categories/edit/${category.id}`}
                         className="text-indigo-600 hover:text-indigo-900"
+                        title="Chỉnh sửa"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -172,6 +221,7 @@ const CategoryList: React.FC = () => {
                       <button
                         onClick={() => handleDelete(category.id)}
                         className="text-red-600 hover:text-red-900"
+                        title="Xóa"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />

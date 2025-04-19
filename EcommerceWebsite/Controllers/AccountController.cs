@@ -6,6 +6,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using System.IO;
+using System;
+using Ecommerce.Core.Interfaces.Services;
 
 namespace EcommerceWebsite.Controllers
 {
@@ -14,15 +18,18 @@ namespace EcommerceWebsite.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
+        private readonly ICartService _cartService;
 
         public AccountController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            RoleManager<ApplicationRole> roleManager)
+            RoleManager<ApplicationRole> roleManager,
+            ICartService cartService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _roleManager = roleManager;
+            _cartService = cartService;
         }
 
         [HttpGet]
@@ -62,6 +69,16 @@ namespace EcommerceWebsite.Controllers
                     };
 
                     await _signInManager.SignInAsync(user, isPersistent: false);
+
+                    if (Request.Cookies.TryGetValue("cart_id", out string anonymousCartId) && !string.IsNullOrEmpty(anonymousCartId))
+                    {
+                        await _cartService.MergeCartsAsync(anonymousCartId, user.Id);
+                        
+                        Response.Cookies.Delete("cart_id");
+                        
+                        TempData["UpdateCart"] = true;
+                    }
+
                     return RedirectToAction("Index", "Home");
                 }
 
@@ -94,6 +111,19 @@ namespace EcommerceWebsite.Controllers
 
                 if (result.Succeeded)
                 {
+                    var user = await _userManager.FindByEmailAsync(model.Email);
+                    if (user != null)
+                    {
+                        if (Request.Cookies.TryGetValue("cart_id", out string anonymousCartId) && !string.IsNullOrEmpty(anonymousCartId))
+                        {
+                            await _cartService.MergeCartsAsync(anonymousCartId, user.Id);
+                            
+                            Response.Cookies.Delete("cart_id");
+                            
+                            TempData["UpdateCart"] = true;
+                        }
+                    }
+
                     if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                     {
                         return Redirect(returnUrl);
@@ -148,7 +178,7 @@ namespace EcommerceWebsite.Controllers
                 return NotFound();
             }
 
-            var model = new UserDto
+            var model = new UserProfileDto
             {
                 Id = user.Id,
                 FirstName = user.FirstName,
@@ -160,6 +190,41 @@ namespace EcommerceWebsite.Controllers
             };
 
             return View(model);
+        }
+
+        [HttpPost]
+        [Authorize]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateProfile(UserProfileDto model, IFormFile avatarFile)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View("Profile", model);
+            }
+
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            user.FirstName = model.FirstName;
+            user.LastName = model.LastName;
+            user.PhoneNumber = model.PhoneNumber;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (result.Succeeded)
+            {
+                return View("Profile", model);
+            }
+
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error.Description);
+            }
+
+            return View("Profile", model);
         }
     }
 } 

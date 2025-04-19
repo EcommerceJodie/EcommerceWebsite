@@ -22,6 +22,6 @@ namespace Ecommerce.Core.DTOs
         
         public List<IFormFile> ProductImages { get; set; } = new List<IFormFile>();
         
-        public IFormFile MainImage { get; set; }
+        public IFormFile? MainImage { get; set; }
     }
 } 

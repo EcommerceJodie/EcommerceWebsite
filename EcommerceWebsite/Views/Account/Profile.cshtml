@@ -1,7 +1,10 @@
-@model Ecommerce.Core.DTOs.Identity.UserDto
+@model Ecommerce.Core.DTOs.Identity.UserProfileDto
 
 @{
     ViewData["Title"] = "Thông tin cá nhân";
+    var firstLetter = !string.IsNullOrEmpty(Model.FirstName) 
+        ? Model.FirstName[0].ToString().ToUpper() 
+        : (!string.IsNullOrEmpty(Model.Email) ? Model.Email[0].ToString().ToUpper() : "U");
 }
 
 <div class="container">
@@ -12,33 +15,76 @@
                     <h2 class="text-center">@ViewData["Title"]</h2>
                 </div>
                 <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-4 fw-bold">Họ tên:</div>
-                        <div class="col-md-8">@Model.FirstName @Model.LastName</div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-4 fw-bold">Email:</div>
-                        <div class="col-md-8">@Model.Email</div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-4 fw-bold">Số điện thoại:</div>
-                        <div class="col-md-8">@Model.PhoneNumber</div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-4 fw-bold">Ngày tạo tài khoản:</div>
-                        <div class="col-md-8">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-4 fw-bold">Vai trò:</div>
-                        <div class="col-md-8">
-                            @string.Join(", ", Model.Roles)
+                    <form asp-controller="Account" asp-action="UpdateProfile" method="post">
+                        <input type="hidden" asp-for="Id" />
+                        <input type="hidden" asp-for="Email" />
+                        <input type="hidden" asp-for="CreatedAt" />
+                        
+                        <div class="text-center mb-4">
+                            <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center" 
+                                 style="width: 150px; height: 150px; background-color: #007bff; color: white; font-weight: bold; font-size: 64px;">
+                                @firstLetter
+                            </div>
                         </div>
-                    </div>
-                </div>
-                <div class="card-footer text-center">
-                    <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Quay về trang chủ</a>
+                        
+                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                        
+                        <div class="mb-3 row">
+                            <label asp-for="FirstName" class="col-sm-3 col-form-label"></label>
+                            <div class="col-sm-9">
+                                <input asp-for="FirstName" class="form-control" />
+                                <span asp-validation-for="FirstName" class="text-danger"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3 row">
+                            <label asp-for="LastName" class="col-sm-3 col-form-label"></label>
+                            <div class="col-sm-9">
+                                <input asp-for="LastName" class="form-control" />
+                                <span asp-validation-for="LastName" class="text-danger"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3 row">
+                            <label asp-for="Email" class="col-sm-3 col-form-label"></label>
+                            <div class="col-sm-9">
+                                <input asp-for="Email" class="form-control" readonly />
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3 row">
+                            <label asp-for="PhoneNumber" class="col-sm-3 col-form-label"></label>
+                            <div class="col-sm-9">
+                                <input asp-for="PhoneNumber" class="form-control" />
+                                <span asp-validation-for="PhoneNumber" class="text-danger"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3 row">
+                            <label asp-for="CreatedAt" class="col-sm-3 col-form-label"></label>
+                            <div class="col-sm-9">
+                                <input value="@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")" class="form-control" readonly />
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3 row">
+                            <label class="col-sm-3 col-form-label">Vai trò</label>
+                            <div class="col-sm-9">
+                                <input value="@string.Join(", ", Model.Roles)" class="form-control" readonly />
+                            </div>
+                        </div>
+                        
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-primary">Cập nhật thông tin</button>
+                            <a asp-controller="Home" asp-action="Index" class="btn btn-secondary ms-2">Quay về trang chủ</a>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
-</div> 
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+} 

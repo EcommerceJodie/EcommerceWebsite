@@ -12,5 +12,6 @@ namespace Ecommerce.Core.Interfaces.Services
         Task<CategoryDto> CreateCategoryAsync(CreateCategoryDto categoryDto);
         Task<CategoryDto> UpdateCategoryAsync(UpdateCategoryDto categoryDto);
         Task<bool> DeleteCategoryAsync(Guid id);
+        Task<string> GetCategoryImagePresignedUrlAsync(Guid id, int expiryMinutes = 30);
     }
 } 

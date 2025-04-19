@@ -58,9 +58,9 @@ namespace Ecommerce.Shared.Storage.Minio.Services
             try
             {
                 Console.WriteLine("Đang khởi tạo MinioClient...");
-                string endpoint = !string.IsNullOrEmpty(_minioConfig.Endpoint) ? _minioConfig.Endpoint : "localhost:9000";
-                string accessKey = !string.IsNullOrEmpty(_minioConfig.AccessKey) ? _minioConfig.AccessKey : "hsvpooePKbwxEX4ywVx5";
-                string secretKey = !string.IsNullOrEmpty(_minioConfig.SecretKey) ? _minioConfig.SecretKey : "ezP39JFfaLHgIZS7q18rbcZ9X1e54P13OGORsBss";
+                string endpoint = _minioConfig.Endpoint;
+                string accessKey = _minioConfig.AccessKey;
+                string secretKey = _minioConfig.SecretKey;
                 
                 Console.WriteLine($"Đang tạo MinioClient với: Endpoint={endpoint}, AccessKey={accessKey}, SecretKey có độ dài {secretKey?.Length ?? 0}");
                 
@@ -167,6 +167,26 @@ namespace Ecommerce.Shared.Storage.Minio.Services
             }
         }
 
+        public Task<string> GeneratePresignedDownloadUrlAsync(string objectName, int? expiryMinutes = null)
+        {
+            try
+            {
+                if (_minioClient == null)
+                {
+                    _logger?.LogError("MinioClient chưa được khởi tạo!");
+                    return Task.FromResult($"/temp-download/{objectName}");
+                }
+                
+                var expiry = expiryMinutes ?? _minioConfig.PresignedUrlExpiryMinutes;
+                return _minioClient.PresignedGetObjectAsync(_minioConfig.BucketName, objectName, expiry * 60);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Lỗi khi tạo presigned URL tải xuống: {Message}", ex.Message);
+                return Task.FromResult($"/temp-download/{objectName}");
+            }
+        }
+
         public async Task<bool> RemoveFileAsync(string objectName)
         {
             try
@@ -258,6 +278,8 @@ namespace Ecommerce.Shared.Storage.Minio.Services
                 if (!found)
                 {
                     await _minioClient.MakeBucketAsync(_minioConfig.BucketName);
+                    Console.WriteLine($"Đã tạo bucket mới: {_minioConfig.BucketName}");
+                    
                     var policy = $@"{{
                         ""Version"": ""2012-10-17"",
                         ""Statement"": [
@@ -269,16 +291,62 @@ namespace Ecommerce.Shared.Storage.Minio.Services
                                     ]
                                 }},
                                 ""Action"": [
-                                    ""s3:GetObject""
+                                    ""s3:GetObject"",
+                                    ""s3:GetBucketLocation"",
+                                    ""s3:ListBucket""
                                 ],
                                 ""Resource"": [
-                                    ""arn:aws:s3:::{_minioConfig.BucketName}/*""
+                                    ""arn:aws:s3:::{_minioConfig.BucketName}/*"",
+                                    ""arn:aws:s3:::{_minioConfig.BucketName}""
                                 ]
                             }}
                         ]
                     }}";
                     
-                    await _minioClient.SetPolicyAsync(_minioConfig.BucketName, policy);
+                    try {
+                        await _minioClient.SetPolicyAsync(_minioConfig.BucketName, policy);
+                        Console.WriteLine($"Đã thiết lập policy cho bucket {_minioConfig.BucketName}");
+                    }
+                    catch (Exception policyEx) {
+                        Console.WriteLine($"Lỗi khi thiết lập policy: {policyEx.Message}");
+                        _logger?.LogError(policyEx, "Lỗi khi thiết lập policy cho bucket: {Message}", policyEx.Message);
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        var policy = $@"{{
+                            ""Version"": ""2012-10-17"",
+                            ""Statement"": [
+                                {{
+                                    ""Effect"": ""Allow"",
+                                    ""Principal"": {{
+                                        ""AWS"": [
+                                            ""*""
+                                        ]
+                                    }},
+                                    ""Action"": [
+                                        ""s3:GetObject"",
+                                        ""s3:GetBucketLocation"",
+                                        ""s3:ListBucket""
+                                    ],
+                                    ""Resource"": [
+                                        ""arn:aws:s3:::{_minioConfig.BucketName}/*"",
+                                        ""arn:aws:s3:::{_minioConfig.BucketName}""
+                                    ]
+                                }}
+                            ]
+                        }}";
+                        
+                        await _minioClient.SetPolicyAsync(_minioConfig.BucketName, policy);
+                        Console.WriteLine($"Đã cập nhật policy cho bucket {_minioConfig.BucketName}");
+                    }
+                    catch (Exception policyEx)
+                    {
+                        Console.WriteLine($"Lỗi khi cập nhật policy: {policyEx.Message}");
+                        _logger?.LogError(policyEx, "Lỗi khi cập nhật policy cho bucket: {Message}", policyEx.Message);
+                    }
                 }
             }
             catch (Exception ex)
@@ -348,6 +416,61 @@ namespace Ecommerce.Shared.Storage.Minio.Services
                 {
                     Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
                 }
+                return false;
+            }
+        }
+
+        public async Task<bool> ReapplyBucketPolicyAsync()
+        {
+            try
+            {
+                if (_minioClient == null)
+                {
+                    _logger?.LogError("MinioClient chưa được khởi tạo!");
+                    return false;
+                }
+                
+                bool found = await _minioClient.BucketExistsAsync(_minioConfig.BucketName);
+                if (!found)
+                {
+                    _logger?.LogError($"Bucket {_minioConfig.BucketName} không tồn tại");
+                    return false;
+                }
+                
+
+                var policy = $@"{{
+                    ""Version"": ""2012-10-17"",
+                    ""Statement"": [
+                        {{
+                            ""Effect"": ""Allow"",
+                            ""Principal"": {{
+                                ""AWS"": [
+                                    ""*""
+                                ]
+                            }},
+                            ""Action"": [
+                                ""s3:GetObject"",
+                                ""s3:GetBucketLocation"",
+                                ""s3:ListBucket"",
+                                ""s3:ListBucketMultipartUploads"",
+                                ""s3:ListMultipartUploadParts""
+                            ],
+                            ""Resource"": [
+                                ""arn:aws:s3:::{_minioConfig.BucketName}"",
+                                ""arn:aws:s3:::{_minioConfig.BucketName}/*""
+                            ]
+                        }}
+                    ]
+                }}";
+                
+                await _minioClient.SetPolicyAsync(_minioConfig.BucketName, policy);
+                Console.WriteLine($"Đã áp dụng lại policy cho bucket {_minioConfig.BucketName}");
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Lỗi khi áp dụng lại policy cho bucket: {Message}", ex.Message);
                 return false;
             }
         }

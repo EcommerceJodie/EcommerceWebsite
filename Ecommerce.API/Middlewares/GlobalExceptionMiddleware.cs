@@ -80,7 +80,7 @@ namespace Ecommerce.API.Middlewares
                     break;
             }
 
-            // Chỉ hiển thị StackTrace trong môi trường phát triển
+
             if (_environment.IsDevelopment())
             {
                 response.DeveloperMessage = exception.ToString();

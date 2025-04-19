@@ -1,6 +1,6 @@
 using Ecommerce.Core.DTOs.Identity;
 using Ecommerce.Core.Models.Entities;
-using Ecommerce.Services.Interfaces;
+using Ecommerce.Core.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -57,7 +57,47 @@ namespace Ecommerce.API.Controllers
                 throw new UnauthorizedAccessException("Tài khoản không có quyền truy cập trang quản trị");
             }
 
-            var userDto = await CreateUserDto(user);
+            var userDto = await CreateUserDtoWithRefreshToken(user);
+            return Ok(userDto);
+        }
+
+        [HttpPost("refresh-token")]
+        public async Task<ActionResult<UserDto>> RefreshToken(RefreshTokenDto refreshTokenDto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+
+            var userId = await _tokenService.GetUserIdFromRefreshTokenAsync(refreshTokenDto.RefreshToken);
+            if (string.IsNullOrEmpty(userId))
+            {
+                throw new AuthenticationException("Refresh token không hợp lệ");
+            }
+
+
+            var isValid = await _tokenService.ValidateRefreshTokenAsync(userId, refreshTokenDto.RefreshToken);
+            if (!isValid)
+            {
+                throw new AuthenticationException("Refresh token không hợp lệ hoặc đã hết hạn");
+            }
+
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                throw new KeyNotFoundException("Không tìm thấy thông tin người dùng");
+            }
+
+            var roles = await _userManager.GetRolesAsync(user);
+            if (!roles.Contains("Admin"))
+            {
+                throw new UnauthorizedAccessException("Tài khoản không có quyền truy cập trang quản trị");
+            }
+
+
+            var userDto = await CreateUserDtoWithRefreshToken(user);
             return Ok(userDto);
         }
 
@@ -85,6 +125,13 @@ namespace Ecommerce.API.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Logout()
         {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+
+                await _tokenService.DeleteRefreshTokenAsync(userId);
+            }
+
             await _signInManager.SignOutAsync();
             return Ok(new { message = "Đăng xuất thành công" });
         }
@@ -92,7 +139,8 @@ namespace Ecommerce.API.Controllers
         private async Task<UserDto> CreateUserDto(ApplicationUser user)
         {
             var roles = await _userManager.GetRolesAsync(user);
-            var token = await _tokenService.CreateTokenAsync(user, roles);
+            var tokenResult = await _tokenService.CreateTokenAsync(user, roles);
+            string token = tokenResult.accessToken;
 
             return new UserDto
             {
@@ -102,6 +150,27 @@ namespace Ecommerce.API.Controllers
                 LastName = user.LastName,
                 PhoneNumber = user.PhoneNumber,
                 Token = token,
+                Roles = roles,
+                CreatedAt = user.CreatedAt
+            };
+        }
+
+        private async Task<UserDto> CreateUserDtoWithRefreshToken(ApplicationUser user)
+        {
+            var roles = await _userManager.GetRolesAsync(user);
+            var tokenResult = await _tokenService.CreateTokenAsync(user, roles);
+            string accessToken = tokenResult.accessToken;
+            string refreshToken = tokenResult.refreshToken;
+
+            return new UserDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                PhoneNumber = user.PhoneNumber,
+                Token = accessToken,
+                RefreshToken = refreshToken,
                 Roles = roles,
                 CreatedAt = user.CreatedAt
             };

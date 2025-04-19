@@ -52,6 +52,17 @@ namespace Ecommerce.API.Middlewares
                     context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                     response.Message = "Dữ liệu không hợp lệ";
                     response.Details = validationEx.Errors;
+                    
+
+                    string errorDetails = "Chi tiết lỗi validation: ";
+                    if (validationEx.Errors != null)
+                    {
+                        foreach (var error in validationEx.Errors)
+                        {
+                            errorDetails += $"\n- {error.Key}: {string.Join(", ", error.Value)}";
+                        }
+                    }
+                    Console.WriteLine(errorDetails);
                     break;
 
                 case ArgumentNullException nullEx:

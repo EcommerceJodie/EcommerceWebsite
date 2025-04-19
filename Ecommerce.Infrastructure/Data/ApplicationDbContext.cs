@@ -28,12 +28,14 @@ namespace Ecommerce.Infrastructure.Data
         public DbSet<ProductRating> ProductRatings { get; set; }
         public DbSet<Cart> Carts { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
+        public DbSet<MenuConfig> MenuConfigs { get; set; }
+        public DbSet<PaymentTransaction> PaymentTransactions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // Đổi tên các bảng Identity
+
             modelBuilder.Entity<ApplicationUser>().ToTable("Users");
             modelBuilder.Entity<ApplicationRole>().ToTable("Roles");
             modelBuilder.Entity<IdentityUserRole<string>>().ToTable("UserRoles");
@@ -49,7 +51,7 @@ namespace Ecommerce.Infrastructure.Data
             modelBuilder.ApplyConfiguration(new CartConfiguration());
             modelBuilder.ApplyConfiguration(new CartItemConfiguration());
 
-            // Cấu hình mối quan hệ Customer - ApplicationUser
+
             modelBuilder.Entity<Customer>()
                 .HasOne(c => c.User)
                 .WithMany(u => u.Customers)
@@ -98,7 +100,13 @@ namespace Ecommerce.Infrastructure.Data
                 .HasForeignKey(pr => pr.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Thêm query filter cho ApplicationUser và ApplicationRole
+            modelBuilder.Entity<PaymentTransaction>()
+                .HasOne(pt => pt.Order)
+                .WithMany(o => o.PaymentTransactions)
+                .HasForeignKey(pt => pt.OrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
             modelBuilder.Entity<ApplicationUser>().HasQueryFilter(e => !e.IsDeleted);
             modelBuilder.Entity<ApplicationRole>().HasQueryFilter(e => !e.IsDeleted);
             modelBuilder.Entity<Category>().HasQueryFilter(e => !e.IsDeleted);
@@ -110,6 +118,8 @@ namespace Ecommerce.Infrastructure.Data
             modelBuilder.Entity<ProductRating>().HasQueryFilter(e => !e.IsDeleted);
             modelBuilder.Entity<Cart>().HasQueryFilter(e => !e.IsDeleted);
             modelBuilder.Entity<CartItem>().HasQueryFilter(e => !e.IsDeleted);
+            modelBuilder.Entity<MenuConfig>().HasQueryFilter(e => !e.IsDeleted);
+            modelBuilder.Entity<PaymentTransaction>().HasQueryFilter(e => !e.IsDeleted);
         }
 
         public override int SaveChanges()
@@ -127,7 +137,7 @@ namespace Ecommerce.Infrastructure.Data
         private void UpdateAuditFields()
         {
             var now = DateTime.UtcNow;
-            // Cập nhật thông tin cho BaseEntity
+
             foreach (var entry in ChangeTracker.Entries<BaseEntity>())
             {
                 switch (entry.State)
@@ -147,7 +157,7 @@ namespace Ecommerce.Infrastructure.Data
                 }
             }
 
-            // Cập nhật thông tin cho ApplicationUser
+
             foreach (var entry in ChangeTracker.Entries<ApplicationUser>())
             {
                 switch (entry.State)
@@ -161,7 +171,7 @@ namespace Ecommerce.Infrastructure.Data
                 }
             }
 
-            // Cập nhật thông tin cho ApplicationRole
+
             foreach (var entry in ChangeTracker.Entries<ApplicationRole>())
             {
                 switch (entry.State)

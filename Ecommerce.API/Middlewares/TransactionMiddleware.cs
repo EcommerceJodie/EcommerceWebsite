@@ -17,7 +17,7 @@ namespace Ecommerce.API.Middlewares
 
         public async Task InvokeAsync(HttpContext context, IUnitOfWork unitOfWork)
         {
-            // Chỉ xử lý giao dịch cho các API endpoint có thể thay đổi dữ liệu
+
             if (!IsWriteOperation(context.Request.Method))
             {
                 await _next(context);
@@ -26,14 +26,14 @@ namespace Ecommerce.API.Middlewares
 
             try
             {
-                // Bắt đầu giao dịch
+
                 await unitOfWork.BeginTransactionAsync();
 
-                // Gọi middleware tiếp theo trong pipeline
+
                 await _next(context);
 
-                // Nếu không có lỗi và StatusCode trong phạm vi thành công (2xx),
-                // commit giao dịch
+
+
                 if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300)
                 {
                     await unitOfWork.CommitTransactionAsync();
@@ -45,7 +45,7 @@ namespace Ecommerce.API.Middlewares
             }
             catch
             {
-                // Rollback giao dịch khi có lỗi
+
                 await unitOfWork.RollbackTransactionAsync();
                 throw;
             }

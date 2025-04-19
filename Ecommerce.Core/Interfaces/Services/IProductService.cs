@@ -7,6 +7,11 @@ namespace Ecommerce.Core.Interfaces.Services
 {
     public interface IProductService
     {
+
+        Task<PagedResultDto<ProductDto>> GetPagedProductsAsync(ProductQueryDto queryDto);
+        Task<PagedResultDto<ProductDto>> GetProductsByCategoryAsync(Guid categoryId, PaginationRequestDto pagination);
+        
+
         Task<List<ProductDto>> GetAllProductsAsync();
         Task<ProductDto> GetProductByIdAsync(Guid id);
         Task<List<ProductDto>> GetProductsByCategoryAsync(Guid categoryId);
@@ -18,5 +23,11 @@ namespace Ecommerce.Core.Interfaces.Services
         Task<ProductImageDto> AddProductImageAsync(Guid productId, AddProductImageDto imageDto);
         Task<bool> DeleteProductImageAsync(Guid imageId);
         Task<bool> SetMainProductImageAsync(Guid imageId);
+        
+
+        Task<string> GetProductImagePresignedUrlAsync(Guid imageId, int expiryMinutes = 30);
+        
+
+        Task<string> GetProductMainImagePresignedUrlAsync(Guid productId, int expiryMinutes = 30);
     }
 } 

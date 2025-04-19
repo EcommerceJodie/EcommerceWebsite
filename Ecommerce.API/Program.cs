@@ -13,10 +13,11 @@ using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Thêm CORS policy
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowSpecificOrigins", policy =>
@@ -32,7 +33,7 @@ builder.Services.AddCors(options =>
         else
         {
             policy.WithOrigins(corsSettings.GetSection("AllowedOrigins").Get<string[]>() ?? 
-                    new string[] { "http://localhost:5173" })
+                    new string[] { "http://localhost:3000" })
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();
@@ -46,7 +47,7 @@ builder.Services.AddIdentityServices();
 
 builder.Services.AddJwtAuthentication(builder.Configuration);
 
-// Đăng ký MinioService
+
 Console.WriteLine("Bắt đầu cấu hình MinioService...");
 var minioConfig = builder.Configuration.GetSection("MinioConfig").Get<Ecommerce.Shared.Storage.Minio.Configs.MinioConfig>();
 if (minioConfig == null)
@@ -60,10 +61,10 @@ Console.WriteLine("Đang gọi AddMinioService...");
 builder.Services.AddMinioService(builder.Configuration);
 Console.WriteLine("Đã cấu hình MinioService thành công");
 
-builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<Ecommerce.Core.Interfaces.Services.ITokenService, Ecommerce.Services.Implementations.TokenService>();
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -98,10 +99,12 @@ builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IMenuConfigRepository, MenuConfigRepository>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IMenuConfigService, MenuConfigService>();
 
-// Đăng ký validators
+
 builder.Services.AddScoped<IValidator<CreateCategoryDto>, CreateCategoryValidator>();
 builder.Services.AddScoped<IValidator<UpdateCategoryDto>, UpdateCategoryValidator>();
 builder.Services.AddScoped<IValidator<CreateProductDto>, CreateProductValidator>();
@@ -111,27 +114,33 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 builder.Services.AddAutoMapper(typeof(Program).Assembly, typeof(ProductDto).Assembly);
 
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+
+builder.Services.AddRedisCache(builder.Configuration);
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Sử dụng Global Exception Handler middleware
+
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 app.UseHttpsRedirection();
 
-// Sử dụng CORS trước Authentication và Authorization
+
 app.UseCors("AllowSpecificOrigins");
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Sử dụng TransactionMiddleware trước khi xử lý controller
+
 app.UseTransactionMiddleware();
 
 app.MapControllers().RequireCors("AllowSpecificOrigins");

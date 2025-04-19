@@ -5,6 +5,8 @@ import Login from '../pages/Login';
 import MainLayout from '../components/layouts/MainLayout';
 import CategoryList from '../pages/categories/CategoryList';
 import CategoryForm from '../pages/categories/CategoryForm';
+import MenuConfigList from '../pages/menuconfigs/MenuConfigList';
+import MenuConfigForm from '../pages/menuconfigs/MenuConfigForm';
 
 // Guard component to check if user is authenticated
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -41,6 +43,19 @@ const routes: RouteObject[] = [
       {
         path: '/categories/edit/:id',
         element: <CategoryForm isEdit={true} />,
+      },
+      // Menu Config routes
+      {
+        path: '/menu-configs',
+        element: <MenuConfigList />,
+      },
+      {
+        path: '/menu-configs/create',
+        element: <MenuConfigForm />,
+      },
+      {
+        path: '/menu-configs/edit/:id',
+        element: <MenuConfigForm isEdit={true} />,
       },
       // Add other routes here as needed
     ],

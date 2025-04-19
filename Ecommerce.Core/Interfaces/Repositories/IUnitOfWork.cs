@@ -7,6 +7,7 @@ namespace Ecommerce.Core.Interfaces.Repositories
     {
         IRepository<T> Repository<T>() where T : class;
         Task<int> CompleteAsync();
+        bool HasActiveTransaction();
         Task BeginTransactionAsync();
         Task CommitTransactionAsync();
         Task RollbackTransactionAsync();

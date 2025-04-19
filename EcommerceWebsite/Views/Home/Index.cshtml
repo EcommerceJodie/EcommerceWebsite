@@ -1,8 +1,358 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@model Ecommerce.Core.DTOs.PagedResultDto<Ecommerce.Core.DTOs.ProductDto>
+
+@{
+    ViewData["Title"] = "Trang chủ";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<!-- Banner Carousel -->
+<div id="mainCarousel" class="carousel slide mb-4" data-bs-ride="carousel">
+    <div class="carousel-indicators">
+        <button type="button" data-bs-target="#mainCarousel" data-bs-slide-to="0" class="active"></button>
+        <button type="button" data-bs-target="#mainCarousel" data-bs-slide-to="1"></button>
+        <button type="button" data-bs-target="#mainCarousel" data-bs-slide-to="2"></button>
+    </div>
+    <div class="carousel-inner">
+        <div class="carousel-item active">
+            <img src="~/images/banner1.jpg" class="d-block w-100" alt="Khuyến mãi mùa hè">
+        </div>
+        <div class="carousel-item">
+            <img src="~/images/banner2.jpg" class="d-block w-100" alt="Sản phẩm mới">
+        </div>
+        <div class="carousel-item">
+            <img src="~/images/banner3.jpg" class="d-block w-100" alt="Miễn phí vận chuyển">
+        </div>
+    </div>
+    <button class="carousel-control-prev" type="button" data-bs-target="#mainCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Previous</span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#mainCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Next</span>
+    </button>
 </div>
+
+<!-- Danh mục sản phẩm -->
+<div class="container mb-5">
+    <div class="category-slider">
+        <div class="row text-center g-4">
+            @if (ViewBag.FeaturedCategories != null)
+            {
+                foreach (var category in ViewBag.FeaturedCategories)
+                {
+                    <div class="col-4 col-sm-3 col-md-2 category-item">
+                        <a href="/Category/Index/@category.Id" class="category-circle-link">
+                            <div class="category-circle">
+                                @if (!string.IsNullOrEmpty(category.CategoryImageUrl))
+                                {
+                                    <img src="@category.CategoryImageUrl" alt="@category.CategoryName">
+                                }
+                                else
+                                {
+                                    <i class="bi bi-collection"></i>
+                                }
+                            </div>
+                            <div class="category-title">@category.CategoryName</div>
+                        </a>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Sản phẩm nổi bật -->
+<div class="container mb-5">
+    <h2 class="text-center mb-4">Sản phẩm nổi bật</h2>
+    <div class="row g-4">
+        @if (ViewBag.FeaturedProducts != null)
+        {
+            foreach (var product in ViewBag.FeaturedProducts)
+            {
+                <div class="col-md-4 col-lg-3 col-sm-6">
+                    <partial name="_ProductCard" model="product" />
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<!-- Sản phẩm mới nhất -->
+<div class="container">
+    <h2 class="text-center mb-4">Sản phẩm mới nhất</h2>
+    
+    <div class="row g-4">
+        @foreach (var product in Model.Items)
+        {
+            <div class="col-md-4 col-lg-3 col-sm-6">
+                <partial name="_ProductCard" model="product" />
+            </div>
+        }
+    </div>
+    
+    <div class="mt-4">
+        <partial name="_Pagination" />
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Xử lý khi click nút thêm vào giỏ hàng
+            $('.add-to-cart').click(function(e) {
+                e.preventDefault();
+                var productId = $(this).data('product-id');
+            });
+        });
+    </script>
+}
+
+<style>
+    .section-title {
+        position: relative;
+        font-size: 20px;
+        font-weight: 600;
+        color: #333;
+    }
+    
+    /* Category slider */
+    .category-slider {
+        padding: 15px 0;
+        background-color: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    
+    .category-item {
+        margin-bottom: 10px;
+    }
+    
+    .category-circle-link {
+        text-decoration: none;
+        color: #333;
+        display: block;
+        text-align: center;
+    }
+    
+    .category-circle {
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        background-color: #f8f9fa;
+        margin: 0 auto 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid #eee;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .category-circle:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 10px rgba(0,0,0,0.1);
+    }
+    
+    .category-circle img {
+        width: 70%;
+        height: 70%;
+        object-fit: contain;
+    }
+    
+    .category-circle i {
+        font-size: 36px;
+        color: #e61a23;
+    }
+    
+    .category-title {
+        font-size: 14px;
+        font-weight: 500;
+        margin-top: 5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Feature Categories */
+    .feature-category {
+        cursor: pointer;
+        transition: transform 0.2s;
+        padding: 15px 10px;
+        border-radius: 8px;
+        border: 1px solid #eee;
+    }
+    
+    .feature-category:hover {
+        transform: translateY(-5px);
+        border-color: #e61a23;
+    }
+    
+    .category-icon {
+        font-size: 32px;
+        margin-bottom: 10px;
+        color: #e61a23;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .category-thumbnail {
+        width: 50px;
+        height: 50px;
+        object-fit: contain;
+    }
+    
+    .category-name {
+        font-size: 14px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Product Cards */
+    .product-card {
+        border: 1px solid #eee;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+        transition: box-shadow 0.3s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .product-card:hover {
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .product-link {
+        text-decoration: none;
+        color: inherit;
+        display: block;
+        flex-grow: 1;
+    }
+    
+    .discount-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: #e61a23;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        font-weight: bold;
+        z-index: 10;
+    }
+    
+    .product-image {
+        width: 100%;
+        height: 180px;
+        object-fit: contain;
+        background-color: #f8f9fa;
+        padding: 10px;
+    }
+    
+    .product-image-placeholder {
+        width: 100%;
+        height: 180px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+        color: #ccc;
+        font-size: 40px;
+    }
+    
+    .product-info {
+        padding: 10px;
+    }
+    
+    .product-name {
+        font-size: 14px;
+        margin-bottom: 5px;
+        color: #333;
+        height: 40px;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+    
+    .price-area {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    
+    .current-price {
+        font-weight: bold;
+        color: #e61a23;
+        font-size: 16px;
+        margin-right: 8px;
+    }
+    
+    .original-price {
+        text-decoration: line-through;
+        color: #999;
+        font-size: 13px;
+    }
+    
+    .stock-status {
+        font-size: 12px;
+        border-radius: 3px;
+        display: inline-block;
+        padding: 2px 6px;
+        margin-top: 5px;
+    }
+    
+    .low-stock {
+        background-color: #fff3cd;
+        color: #664d03;
+    }
+    
+    .out-of-stock {
+        background-color: #f8d7da;
+        color: #842029;
+    }
+    
+    .product-actions {
+        padding: 10px;
+        border-top: 1px solid #eee;
+    }
+    
+    .add-to-cart {
+        width: 100%;
+        background-color: #e61a23;
+        border-color: #e61a23;
+    }
+    
+    .add-to-cart:hover {
+        background-color: #d01016;
+        border-color: #d01016;
+    }
+    
+    /* Responsive Adjustments */
+    @@media (max-width: 768px) {
+        .product-image {
+            height: 150px;
+        }
+        
+        .category-icon {
+            height: 40px;
+            font-size: 24px;
+        }
+        
+        .category-circle {
+            width: 70px;
+            height: 70px;
+        }
+        
+        .category-title {
+            font-size: 12px;
+        }
+    }
+</style>

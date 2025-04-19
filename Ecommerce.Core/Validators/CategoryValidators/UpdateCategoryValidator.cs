@@ -29,9 +29,6 @@ namespace Ecommerce.Core.Validators.CategoryValidators
             RuleFor(x => x.CategoryDescription)
                 .MaximumLength(500).WithMessage("Mô tả danh mục không được vượt quá 500 ký tự");
 
-            RuleFor(x => x.CategoryImageUrl)
-                .MaximumLength(255).WithMessage("URL hình ảnh không được vượt quá 255 ký tự");
-
             RuleFor(x => x.DisplayOrder)
                 .GreaterThanOrEqualTo(0).WithMessage("Thứ tự hiển thị phải là số không âm");
         }

@@ -1,0 +1,236 @@
+@{
+    var currentPage = ViewBag.CurrentPage;
+    var totalPages = ViewBag.TotalPages;
+    var totalItems = ViewBag.TotalItems;
+    var pageSize = ViewBag.PageSize;
+    
+    var sortBy = ViewBag.SortBy;
+    var sortDesc = ViewBag.SortDesc;
+    var categoryId = ViewBag.CategoryId;
+    var searchTerm = ViewBag.SearchTerm;
+    
+    // Xác định controller và action hiện tại
+    var currentController = ViewContext.RouteData.Values["controller"].ToString();
+    var currentAction = ViewContext.RouteData.Values["action"].ToString();
+    
+    Dictionary<string, string> routeValues = new Dictionary<string, string>();
+    
+    // Nếu đang ở CategoryController với Products action, thêm tham số id
+    if (currentController == "Category" && currentAction == "Products" && categoryId != null)
+    {
+        routeValues.Add("id", categoryId.ToString());
+    }
+    
+    if (sortBy != null)
+    {
+        routeValues.Add("sortBy", sortBy.ToString());
+    }
+    
+    if (sortDesc != null)
+    {
+        routeValues.Add("sortDesc", sortDesc.ToString());
+    }
+    
+    if (pageSize != null)
+    {
+        routeValues.Add("pageSize", pageSize.ToString());
+    }
+    
+    if (!string.IsNullOrEmpty(searchTerm))
+    {
+        routeValues.Add("searchTerm", searchTerm.ToString());
+    }
+}
+
+<div class="pagination-container">
+    <div class="pagination-info">
+        Hiển thị <strong>@(((currentPage - 1) * pageSize) + 1) - @(Math.Min(currentPage * pageSize, totalItems))</strong> trên tổng số <strong>@totalItems</strong> sản phẩm
+    </div>
+    
+    <nav aria-label="Phân trang">
+        <ul class="pagination">
+            @if (currentPage > 1)
+            {
+                <li class="page-item">
+                    @{
+                        Dictionary<string, string> prevRouteValues = new Dictionary<string, string>(routeValues);
+                        prevRouteValues["page"] = (currentPage - 1).ToString();
+                    }
+                    <a class="page-link" href="@Url.Action(currentAction, currentController, prevRouteValues)" aria-label="Trang trước">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+            }
+            else
+            {
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-left"></i></span>
+                </li>
+            }
+    
+            @{
+                var startPage = Math.Max(1, currentPage - 2);
+                var endPage = Math.Min(totalPages, startPage + 4);
+                
+                if (endPage - startPage < 4 && startPage > 1)
+                {
+                    startPage = Math.Max(1, endPage - 4);
+                }
+            }
+    
+            @if (startPage > 1)
+            {
+                <li class="page-item">
+                    @{
+                        Dictionary<string, string> firstRouteValues = new Dictionary<string, string>(routeValues);
+                        firstRouteValues["page"] = "1";
+                    }
+                    <a class="page-link" href="@Url.Action(currentAction, currentController, firstRouteValues)">1</a>
+                </li>
+                @if (startPage > 2)
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                }
+            }
+    
+            @for (var i = startPage; i <= endPage; i++)
+            {
+                <li class="page-item @(i == currentPage ? "active" : "")">
+                    @if (i == currentPage)
+                    {
+                        <span class="page-link">@i</span>
+                    }
+                    else
+                    {
+                        Dictionary<string, string> pageRouteValues = new Dictionary<string, string>(routeValues);
+                        pageRouteValues["page"] = i.ToString();
+                        <a class="page-link" href="@Url.Action(currentAction, currentController, pageRouteValues)">@i</a>
+                    }
+                </li>
+            }
+    
+            @if (endPage < totalPages)
+            {
+                @if (endPage < totalPages - 1)
+                {
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                }
+                <li class="page-item">
+                    @{
+                        Dictionary<string, string> lastRouteValues = new Dictionary<string, string>(routeValues);
+                        lastRouteValues["page"] = totalPages.ToString();
+                    }
+                    <a class="page-link" href="@Url.Action(currentAction, currentController, lastRouteValues)">@totalPages</a>
+                </li>
+            }
+    
+            @if (currentPage < totalPages)
+            {
+                <li class="page-item">
+                    @{
+                        Dictionary<string, string> nextRouteValues = new Dictionary<string, string>(routeValues);
+                        nextRouteValues["page"] = (currentPage + 1).ToString();
+                    }
+                    <a class="page-link" href="@Url.Action(currentAction, currentController, nextRouteValues)" aria-label="Trang sau">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            }
+            else
+            {
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-right"></i></span>
+                </li>
+            }
+        </ul>
+    </nav>
+</div>
+
+<style>
+    .pagination-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 30px 0 20px;
+        flex-wrap: wrap;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #eee;
+    }
+    
+    .pagination-info {
+        color: #555;
+        font-size: 0.95rem;
+        margin-bottom: 10px;
+    }
+    
+    .pagination-info strong {
+        color: #e61a23;
+    }
+    
+    .pagination {
+        margin-bottom: 0;
+    }
+    
+    .pagination .page-link {
+        color: #555;
+        border-color: #ddd;
+        font-weight: 500;
+        margin: 0 2px;
+        transition: all 0.2s ease;
+    }
+    
+    .pagination .page-link:hover {
+        color: #e61a23;
+        background-color: #fff;
+        border-color: #e61a23;
+        z-index: 3;
+    }
+    
+    .pagination .page-item.active .page-link {
+        background-color: #e61a23;
+        border-color: #e61a23;
+        color: white;
+        box-shadow: 0 2px 5px rgba(230, 26, 35, 0.3);
+    }
+    
+    .pagination .page-item.disabled .page-link {
+        color: #ccc;
+        pointer-events: none;
+        background-color: #f8f8f8;
+        border-color: #eee;
+    }
+    
+    .pagination .page-item:first-child .page-link,
+    .pagination .page-item:last-child .page-link {
+        background-color: #f8f8f8;
+    }
+    
+    .pagination .page-item:first-child .page-link:hover,
+    .pagination .page-item:last-child .page-link:hover {
+        background-color: #e61a23;
+        color: white;
+    }
+    
+    @@media (max-width: 768px) {
+        .pagination-container {
+            flex-direction: column;
+            padding: 10px;
+            margin: 20px 0 15px;
+        }
+        
+        .pagination {
+            margin-top: 10px;
+        }
+        
+        .pagination .page-link {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+    }
+</style> 

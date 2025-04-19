@@ -7,7 +7,9 @@ namespace Ecommerce.Services.Interfaces
 {
     public interface ITokenService
     {
-        Task<string> CreateTokenAsync(ApplicationUser user, IList<string> roles);
+        Task<(string accessToken, string refreshToken)> CreateTokenAsync(ApplicationUser user, IList<string> roles);
         ClaimsPrincipal ValidateToken(string token);
+        Task<string> GenerateRefreshTokenAsync();
+        Task<bool> ValidateRefreshTokenAsync(ApplicationUser user, string refreshToken);
     }
 } 
