@@ -135,6 +135,33 @@ class ProductsApiService {
   }
   
   /**
+   * Xóa nhiều sản phẩm cùng lúc
+   * @param productIds Danh sách ID sản phẩm cần xóa
+   * @returns 
+   */
+  public async deleteMultiple(productIds: string[]): Promise<void> {
+    return apiClient.post<void>(`${this.baseEndpoint}/batch`, { productIds });
+  }
+  
+  /**
+   * Nhân bản sản phẩm
+   * @param productId ID của sản phẩm cần nhân bản
+   * @param options Tùy chọn nhân bản
+   * @returns Sản phẩm mới được tạo ra
+   */
+  public async duplicateProduct(
+    productId: string, 
+    options: { 
+      newProductName?: string;
+      newProductSku?: string;
+      newProductSlug?: string;
+      copyImages?: boolean;
+    } = {}
+  ): Promise<Product> {
+    return apiClient.post<Product>(`${this.baseEndpoint}/${productId}/duplicate`, options);
+  }
+  
+  /**
    * Thêm hình ảnh cho sản phẩm
    * @param productId ID của sản phẩm
    * @param formData Form data chứa hình ảnh

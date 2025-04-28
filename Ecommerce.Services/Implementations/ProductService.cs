@@ -25,6 +25,7 @@ namespace Ecommerce.Services.Implementations
         private readonly IMinioService _minioService;
         private readonly IValidator<CreateProductDto> _createValidator;
         private readonly IValidator<UpdateProductDto> _updateValidator;
+        private readonly IValidator<DuplicateProductDto> _duplicateValidator;
 
         public ProductService(
             IProductRepository productRepository,
@@ -32,7 +33,8 @@ namespace Ecommerce.Services.Implementations
             IMapper mapper,
             IMinioService minioService,
             IValidator<CreateProductDto> createValidator,
-            IValidator<UpdateProductDto> updateValidator)
+            IValidator<UpdateProductDto> updateValidator,
+            IValidator<DuplicateProductDto> duplicateValidator = null)
         {
             _productRepository = productRepository;
             _unitOfWork = unitOfWork;
@@ -40,16 +42,14 @@ namespace Ecommerce.Services.Implementations
             _minioService = minioService;
             _createValidator = createValidator;
             _updateValidator = updateValidator;
+            _duplicateValidator = duplicateValidator;
         }
 
         public async Task<PagedResultDto<ProductDto>> GetPagedProductsAsync(ProductQueryDto queryDto)
         {
-
-            var query = _productRepository.Ts
+            IQueryable<Product> query = _productRepository.Ts
                 .Include(p => p.Category)
-                .Include(p => p.ProductImages.Where(pi => pi.IsMainImage == true))
-                .Where(p => !p.IsDeleted);
-
+                .Include(p => p.ProductImages.Where(pi => pi.IsMainImage == true));
 
             if (queryDto.CategoryId.HasValue)
             {
@@ -95,19 +95,20 @@ namespace Ecommerce.Services.Implementations
                 );
             }
 
-
-            var totalCount = await query.CountAsync();
-
+            var totalCount = await query.Where(p => !p.IsDeleted).CountAsync();
 
             query = queryDto.SortBy.ToLower() switch
             {
-                "name" => queryDto.SortDesc ? 
+                "productname" => queryDto.SortDesc ? 
                     query.OrderByDescending(p => p.ProductName) : 
                     query.OrderBy(p => p.ProductName),
-                "price" => queryDto.SortDesc ? 
+                "productPrice" => queryDto.SortDesc ? 
                     query.OrderByDescending(p => p.ProductPrice) : 
                     query.OrderBy(p => p.ProductPrice),
-                "stock" => queryDto.SortDesc ? 
+                "productprice" => queryDto.SortDesc ? 
+                    query.OrderByDescending(p => p.ProductDiscountPrice) : 
+                    query.OrderBy(p => p.ProductPrice),
+                "productstock" => queryDto.SortDesc ? 
                     query.OrderByDescending(p => p.ProductStock) : 
                     query.OrderBy(p => p.ProductStock),
                 "category" => queryDto.SortDesc ? 
@@ -118,18 +119,14 @@ namespace Ecommerce.Services.Implementations
                     query.OrderBy(p => p.CreatedAt)
             };
 
-
             var products = await query
                 .Skip((queryDto.PageNumber - 1) * queryDto.PageSize)
                 .Take(queryDto.PageSize)
                 .ToListAsync();
 
-
             var productDtos = _mapper.Map<List<ProductDto>>(products);
             
-
             await ApplyPresignedUrlToProductsAsync(productDtos);
-
 
             var result = new PagedResultDto<ProductDto>
             {
@@ -145,12 +142,10 @@ namespace Ecommerce.Services.Implementations
 
         public async Task<PagedResultDto<ProductDto>> GetProductsByCategoryAsync(Guid categoryId, PaginationRequestDto pagination)
         {
-
-            var query = _productRepository.Ts
+            IQueryable<Product> query = _productRepository.Ts
                 .Include(p => p.Category)
                 .Include(p => p.ProductImages)
-                .Where(p => !p.IsDeleted && p.CategoryId == categoryId);
-
+                .Where(p => p.CategoryId == categoryId);
 
             if (!string.IsNullOrWhiteSpace(pagination.SearchTerm))
             {
@@ -162,19 +157,17 @@ namespace Ecommerce.Services.Implementations
                 );
             }
 
-
             var totalCount = await query.CountAsync();
-
 
             query = pagination.SortBy.ToLower() switch
             {
-                "name" => pagination.SortDesc ? 
+                "productName" => pagination.SortDesc ? 
                     query.OrderByDescending(p => p.ProductName) : 
                     query.OrderBy(p => p.ProductName),
-                "price" => pagination.SortDesc ? 
+                "productPrice" => pagination.SortDesc ? 
                     query.OrderByDescending(p => p.ProductPrice) : 
                     query.OrderBy(p => p.ProductPrice),
-                "stock" => pagination.SortDesc ? 
+                "productStock" => pagination.SortDesc ? 
                     query.OrderByDescending(p => p.ProductStock) : 
                     query.OrderBy(p => p.ProductStock),
                 _ => pagination.SortDesc ? 
@@ -182,18 +175,14 @@ namespace Ecommerce.Services.Implementations
                     query.OrderBy(p => p.CreatedAt)
             };
 
-
             var products = await query
                 .Skip((pagination.PageNumber - 1) * pagination.PageSize)
                 .Take(pagination.PageSize)
                 .ToListAsync();
 
-
             var productDtos = _mapper.Map<List<ProductDto>>(products);
             
-
             await ApplyPresignedUrlToProductsAsync(productDtos);
-
 
             var result = new PagedResultDto<ProductDto>
             {
@@ -212,7 +201,6 @@ namespace Ecommerce.Services.Implementations
             var products = await _productRepository.Ts
                 .Include(p => p.Category)
                 .Include(p => p.ProductImages)
-                .Where(p => !p.IsDeleted)
                 .ToListAsync();
 
             var productDtos = _mapper.Map<List<ProductDto>>(products);
@@ -466,6 +454,205 @@ namespace Ecommerce.Services.Implementations
                 await _unitOfWork.CompleteAsync();
                 await _unitOfWork.CommitTransactionAsync();
                 return true;
+            }
+            catch (Exception)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
+        
+        public async Task<bool> DeleteMultipleProductsAsync(List<Guid> productIds)
+        {
+            if (productIds == null || !productIds.Any())
+            {
+                return false;
+            }
+            
+            var productImageRepository = _unitOfWork.Repository<ProductImage>();
+            
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                foreach (var productId in productIds)
+                {
+                    var product = await _productRepository.GetProductWithRelatedAsync(productId);
+                    
+                    if (product == null || product.IsDeleted)
+                    {
+                        continue; // Bỏ qua sản phẩm không tồn tại
+                    }
+                    
+                    foreach (var image in product.ProductImages)
+                    {
+                        var objectName = GetObjectNameFromUrl(image.ImageUrl);
+                        if (!string.IsNullOrEmpty(objectName))
+                        {
+                            await _minioService.RemoveFileAsync(objectName);
+                        }
+                        
+                        productImageRepository.Delete(image);
+                    }
+                    
+                    product.IsDeleted = true;
+                    product.UpdatedAt = DateTime.UtcNow;
+                    _productRepository.Update(product);
+                }
+                
+                await _unitOfWork.CompleteAsync();
+                await _unitOfWork.CommitTransactionAsync();
+                return true;
+            }
+            catch (Exception)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
+        }
+        
+        public async Task<ProductDto> DuplicateProductAsync(DuplicateProductDto duplicateDto)
+        {
+            // Validate input using the validator
+            if (_duplicateValidator != null)
+            {
+                var validationResult = await _duplicateValidator.ValidateAsync(duplicateDto);
+                if (!validationResult.IsValid)
+                {
+                    var errors = validationResult.Errors
+                        .GroupBy(e => e.PropertyName)
+                        .ToDictionary(
+                            g => g.Key,
+                            g => g.Select(e => e.ErrorMessage).ToArray()
+                        );
+
+                    throw new Ecommerce.Core.Exceptions.ValidationException(errors);
+                }
+            }
+            
+            // Lấy sản phẩm gốc cần nhân bản
+            var sourceProduct = await _productRepository.GetProductWithRelatedAsync(duplicateDto.SourceProductId);
+            
+            if (sourceProduct == null || sourceProduct.IsDeleted)
+            {
+                throw new EntityNotFoundException("Sản phẩm", duplicateDto.SourceProductId);
+            }
+            
+            var productImageRepository = _unitOfWork.Repository<ProductImage>();
+            
+            // Xử lý SKU và slug độc nhất
+            string productSku;
+            if (!string.IsNullOrEmpty(duplicateDto.NewProductSku))
+            {
+                // Sử dụng SKU được chỉ định nếu có
+                productSku = await _productRepository.GenerateUniqueSkuAsync(duplicateDto.NewProductSku);
+            }
+            else
+            {
+                // Tạo SKU mới dựa trên SKU gốc
+                var baseSku = $"{sourceProduct.ProductSku}-COPY";
+                productSku = await _productRepository.GenerateUniqueSkuAsync(baseSku);
+            }
+            
+            string productSlug;
+            if (!string.IsNullOrEmpty(duplicateDto.NewProductSlug))
+            {
+                // Sử dụng slug được chỉ định nếu có
+                productSlug = await _productRepository.GenerateUniqueSlugAsync(duplicateDto.NewProductSlug);
+            }
+            else
+            {
+                // Tạo slug mới dựa trên slug gốc
+                var baseSlug = $"{sourceProduct.ProductSlug}-copy";
+                productSlug = await _productRepository.GenerateUniqueSlugAsync(baseSlug);
+            }
+            
+            // Tạo sản phẩm mới từ sản phẩm gốc
+            var newProduct = new Product
+            {
+                Id = Guid.NewGuid(),
+                ProductName = !string.IsNullOrEmpty(duplicateDto.NewProductName) 
+                    ? duplicateDto.NewProductName 
+                    : $"{sourceProduct.ProductName} - Copy",
+                ProductDescription = sourceProduct.ProductDescription,
+                ProductSlug = productSlug,
+                ProductPrice = sourceProduct.ProductPrice,
+                ProductDiscountPrice = sourceProduct.ProductDiscountPrice,
+                ProductStock = sourceProduct.ProductStock,
+                ProductSku = productSku,
+                ProductStatus = sourceProduct.ProductStatus,
+                IsFeatured = sourceProduct.IsFeatured,
+                MetaTitle = sourceProduct.MetaTitle,
+                MetaDescription = sourceProduct.MetaDescription,
+                CategoryId = sourceProduct.CategoryId,
+                CreatedAt = DateTime.UtcNow,
+                IsDeleted = false,
+                ProductImages = new List<ProductImage>()
+            };
+            
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // Thêm sản phẩm mới vào cơ sở dữ liệu
+                _productRepository.Add(newProduct);
+                
+                // Sao chép hình ảnh nếu có yêu cầu
+                if (duplicateDto.CopyImages && sourceProduct.ProductImages != null && sourceProduct.ProductImages.Any())
+                {
+                    int order = 0;
+                    
+                    foreach (var sourceImage in sourceProduct.ProductImages)
+                    {
+                        if (string.IsNullOrEmpty(sourceImage.ImageUrl))
+                            continue;
+                        
+                        // Lấy thông tin file gốc
+                        var sourceObjectName = GetObjectNameFromUrl(sourceImage.ImageUrl);
+                        if (string.IsNullOrEmpty(sourceObjectName))
+                            continue;
+                        
+                        try
+                        {
+                            // Tạo tên file mới cho sản phẩm mới
+                            var fileExtension = System.IO.Path.GetExtension(sourceObjectName);
+                            var newFileName = $"products/{newProduct.Id}/{order}_{Guid.NewGuid()}{fileExtension}";
+                            
+                            // Sao chép file từ MinIO
+                            var newImageUrl = await _minioService.CopyFileAsync(sourceObjectName, newFileName);
+                            
+                            // Tạo bản ghi hình ảnh mới
+                            var newImage = new ProductImage
+                            {
+                                Id = Guid.NewGuid(),
+                                ProductId = newProduct.Id,
+                                ImageUrl = newImageUrl,
+                                ImageAltText = sourceImage.ImageAltText?.Replace(sourceProduct.ProductName, newProduct.ProductName) 
+                                    ?? newProduct.ProductName,
+                                IsMainImage = sourceImage.IsMainImage,
+                                DisplayOrder = order,
+                                CreatedAt = DateTime.UtcNow
+                            };
+                            
+                            productImageRepository.Add(newImage);
+                            order++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Không thể sao chép hình ảnh: {ex.Message}");
+                            // Tiếp tục với hình ảnh tiếp theo nếu có lỗi
+                        }
+                    }
+                }
+                
+                await _unitOfWork.CompleteAsync();
+                await _unitOfWork.CommitTransactionAsync();
+                
+                // Lấy sản phẩm đã tạo kèm theo các quan hệ
+                var createdProduct = await _productRepository.GetProductWithRelatedAsync(newProduct.Id);
+                var productDto = _mapper.Map<ProductDto>(createdProduct);
+                
+                await ApplyPresignedUrlToProductAsync(productDto);
+                
+                return productDto;
             }
             catch (Exception)
             {

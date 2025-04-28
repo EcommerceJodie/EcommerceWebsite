@@ -16,5 +16,9 @@ namespace Ecommerce.Core.Interfaces.Repositories
         Task<Product> GetProductBySlugAsync(string slug);
         Task<bool> IsProductSlugUniqueAsync(string slug, Guid? excludeId = null);
         Task<bool> IsProductSkuUniqueAsync(string sku, Guid? excludeId = null);
+        Task<bool> IsProductSkuExistAsync(string sku, Guid? excludeProductId = null);
+        Task<bool> IsProductSlugExistAsync(string slug, Guid? excludeProductId = null);
+        Task<string> GenerateUniqueSkuAsync(string baseSku);
+        Task<string> GenerateUniqueSlugAsync(string baseSlug);
     }
 } 

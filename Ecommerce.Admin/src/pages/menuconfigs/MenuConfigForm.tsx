@@ -149,7 +149,11 @@ const MenuConfigForm: React.FC<MenuConfigFormProps> = ({ isEdit = false }) => {
 
     try {
       if (isEdit && id) {
-        await menuConfigsApiService.update(id, formData as UpdateMenuConfigDto);
+        const updateData: UpdateMenuConfigDto = {
+          ...formData,
+          id: id // Thêm ID vào dữ liệu cập nhật
+        };
+        await menuConfigsApiService.update(id, updateData);
         Swal.fire({
           title: 'Thành công!',
           text: 'Cập nhật cấu hình menu thành công.',

@@ -22,5 +22,7 @@ namespace Ecommerce.Shared.Storage.Minio.Interfaces
         bool IsMinioConnectionActive();
         
         Task<bool> ReapplyBucketPolicyAsync();
+        
+        Task<string> CopyFileAsync(string sourceObjectName, string destinationObjectName);
     }
 } 

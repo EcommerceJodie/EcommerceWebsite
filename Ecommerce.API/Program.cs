@@ -103,12 +103,16 @@ builder.Services.AddScoped<IMenuConfigRepository, MenuConfigRepository>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IMenuConfigService, MenuConfigService>();
-
+builder.Services.AddScoped<IProductRevenueService, ProductRevenueService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<ICartService, CartService>();
+builder.Services.AddScoped<IPaymentTransactionService, PaymentTransactionService>();
 
 builder.Services.AddScoped<IValidator<CreateCategoryDto>, CreateCategoryValidator>();
 builder.Services.AddScoped<IValidator<UpdateCategoryDto>, UpdateCategoryValidator>();
 builder.Services.AddScoped<IValidator<CreateProductDto>, CreateProductValidator>();
 builder.Services.AddScoped<IValidator<UpdateProductDto>, UpdateProductValidator>();
+builder.Services.AddScoped<IValidator<DuplicateProductDto>, DuplicateProductValidator>();
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 

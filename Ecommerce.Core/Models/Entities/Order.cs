@@ -18,6 +18,7 @@ namespace Ecommerce.Core.Models.Entities
         public DateTime? PaymentDate { get; set; }
         public DateTime? ShippingDate { get; set; }
         public string Notes { get; set; }
+        public string CreatedBy { get; set; }
         public Guid CustomerId { get; set; }
         public virtual Customer Customer { get; set; }
         public virtual ICollection<OrderDetail> OrderDetails { get; set; } = new List<OrderDetail>();
