@@ -27,7 +27,7 @@ namespace Ecommerce.API.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<PagedResultDto<ProductDto>>> GetProducts(
             [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10,
+            [FromQuery] int pageSize = 5,
             [FromQuery] string sortBy = "createdAt",
             [FromQuery] bool sortDesc = true,
             [FromQuery] string searchTerm = "",
@@ -89,7 +89,7 @@ namespace Ecommerce.API.Controllers
         public async Task<ActionResult<PagedResultDto<ProductDto>>> GetProductsByCategory(
             Guid categoryId, 
             [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10,
+            [FromQuery] int pageSize = 5,
             [FromQuery] string sortBy = "createdAt",
             [FromQuery] bool sortDesc = true,
             [FromQuery] string searchTerm = "")
@@ -173,15 +173,13 @@ namespace Ecommerce.API.Controllers
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UpdateProduct(Guid id, [FromForm] UpdateProductDto updateProductDto)
         {
-            if (id != updateProductDto.Id)
-            {
-                return BadRequest("ID trong đường dẫn không khớp với ID trong dữ liệu");
-            }
-
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
+
+            // Gán ID từ URL vào DTO
+            updateProductDto.Id = id;
 
             await _productService.UpdateProductAsync(updateProductDto);
             return NoContent();
@@ -197,6 +195,43 @@ namespace Ecommerce.API.Controllers
             return NoContent();
         }
         
+        [HttpPost("batch")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> DeleteMultipleProducts([FromBody] DeleteMultipleProductsDto request)
+        {
+            if (request == null || request.ProductIds == null || !request.ProductIds.Any())
+            {
+                return BadRequest("Danh sách ID sản phẩm cần xóa không được để trống");
+            }
+            
+            var result = await _productService.DeleteMultipleProductsAsync(request.ProductIds);
+            
+            if (result)
+            {
+                return NoContent();
+            }
+            
+            return BadRequest("Không thể xóa sản phẩm");
+        }
+        
+        [HttpPost("{id}/duplicate")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<ProductDto>> DuplicateProduct(Guid id, [FromBody] DuplicateProductDto duplicateDto)
+        {
+            if (id == Guid.Empty)
+            {
+                return BadRequest("ID sản phẩm không hợp lệ");
+            }
+            
+            // Gán ID từ URL vào DTO
+            duplicateDto.SourceProductId = id;
+            
+            var duplicatedProduct = await _productService.DuplicateProductAsync(duplicateDto);
+            return CreatedAtAction(nameof(GetProduct), new { id = duplicatedProduct.Id }, duplicatedProduct);
+        }
 
         [HttpPost("{productId}/Images")]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -227,9 +262,15 @@ namespace Ecommerce.API.Controllers
 
         [HttpPut("Images/{imageId}/SetMain")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> SetMainProductImage(Guid imageId)
         {
+            if (imageId == Guid.Empty)
+            {
+                return BadRequest("ID hình ảnh không hợp lệ");
+            }
+
             await _productService.SetMainProductImageAsync(imageId);
             return NoContent();
         }

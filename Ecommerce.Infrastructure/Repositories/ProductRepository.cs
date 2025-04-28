@@ -98,5 +98,59 @@ namespace Ecommerce.Infrastructure.Repositories
 
             return !await query.AnyAsync();
         }
+
+        public async Task<bool> IsProductSkuExistAsync(string sku, Guid? excludeProductId = null)
+        {
+            var query = _context.Products
+                .Where(p => p.ProductSku == sku && !p.IsDeleted);
+
+            if (excludeProductId.HasValue)
+            {
+                query = query.Where(p => p.Id != excludeProductId.Value);
+            }
+
+            return await query.AnyAsync();
+        }
+        
+        public async Task<bool> IsProductSlugExistAsync(string slug, Guid? excludeProductId = null)
+        {
+            var query = _context.Products
+                .Where(p => p.ProductSlug == slug && !p.IsDeleted);
+
+            if (excludeProductId.HasValue)
+            {
+                query = query.Where(p => p.Id != excludeProductId.Value);
+            }
+
+            return await query.AnyAsync();
+        }
+        
+        public async Task<string> GenerateUniqueSkuAsync(string baseSku)
+        {
+            var sku = baseSku;
+            int counter = 1;
+            
+            while (await IsProductSkuExistAsync(sku))
+            {
+                sku = $"{baseSku}-{counter}";
+                counter++;
+            }
+            
+            return sku;
+        }
+        
+        public async Task<string> GenerateUniqueSlugAsync(string baseSlug)
+        {
+            var slug = baseSlug;
+            int counter = 1;
+            
+            while (await IsProductSlugExistAsync(slug))
+            {
+                slug = $"{baseSlug}-{counter}";
+                counter++;
+            }
+            
+            return slug;
+        }
     }
 } 

@@ -11,6 +11,7 @@ using Ecommerce.Shared.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Ecommerce.Services.Implementations
 {
@@ -20,17 +21,20 @@ namespace Ecommerce.Services.Implementations
         private readonly ICartService _cartService;
         private readonly IConfiguration _configuration;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ILogger<OrderService> _logger;
 
         public OrderService(
             IUnitOfWork unitOfWork,
             ICartService cartService,
             IConfiguration configuration,
-            IHttpContextAccessor httpContextAccessor)
+            IHttpContextAccessor httpContextAccessor,
+            ILogger<OrderService> logger)
         {
             _unitOfWork = unitOfWork;
             _cartService = cartService;
             _configuration = configuration;
             _httpContextAccessor = httpContextAccessor;
+            _logger = logger;
         }
 
         public async Task<OrderDto> CreateOrderAsync(CreateOrderDto createOrderDto)
@@ -503,6 +507,370 @@ namespace Ecommerce.Services.Implementations
             else
             {
                 throw new Exception("Chữ ký không hợp lệ");
+            }
+        }
+
+        // Các phương thức mới để hỗ trợ tạo đơn hàng từ admin
+        public async Task<OrderDto> CreateOrderFromAdminAsync(AdminCreateOrderDto createOrderDto, string adminUserId)
+        {
+            try
+            {
+                await _unitOfWork.BeginTransactionAsync();
+
+                // Lấy thông tin khách hàng từ ID
+                var customerRepository = _unitOfWork.Repository<Customer>();
+                var customer = await customerRepository.GetByIdAsync(createOrderDto.CustomerId);
+                if (customer == null)
+                {
+                    throw new Exception($"Không tìm thấy khách hàng với ID: {createOrderDto.CustomerId}");
+                }
+
+                // Lấy thông tin sản phẩm và xác nhận tồn tại
+                var productRepository = _unitOfWork.Repository<Product>();
+                var orderItems = new List<(Product Product, int Quantity)>();
+
+                foreach (var item in createOrderDto.OrderItems)
+                {
+                    var product = await productRepository.Ts
+                        .Include(p => p.ProductImages)
+                        .FirstOrDefaultAsync(p => p.Id == item.ProductId);
+
+                    if (product == null)
+                    {
+                        throw new Exception($"Không tìm thấy sản phẩm với ID: {item.ProductId}");
+                    }
+                    
+                    orderItems.Add((product, item.Quantity));
+                }
+
+                // Tính toán tổng tiền
+                decimal subtotal = orderItems.Sum(item => item.Product.ProductPrice * item.Quantity);
+                decimal totalAmount = subtotal;
+
+                // Tạo đơn hàng mới
+                var orderNumber = $"ADM{DateTime.Now.ToString("yyyyMMddHHmmss")}{customer.Id.ToString().Substring(0, 8)}";
+                var order = new Order
+                {
+                    OrderNumber = orderNumber,
+                    TotalAmount = totalAmount,
+                    OrderStatus = OrderStatus.Processing, // Đơn hàng từ admin mặc định là đang xử lý
+                    ShippingAddress = createOrderDto.ShippingAddress ?? customer.Address,
+                    ShippingCity = customer.City,
+                    ShippingPostalCode = customer.PostalCode,
+                    ShippingCountry = customer.Country,
+                    PaymentMethod = "CASH", // Mặc định là tiền mặt
+                    CustomerId = customer.Id,
+                    Notes = createOrderDto.Note,
+                    CreatedBy = adminUserId // Lưu ID của admin tạo đơn
+                };
+
+                _unitOfWork.Repository<Order>().Add(order);
+                await _unitOfWork.CompleteAsync();
+
+                // Thêm chi tiết đơn hàng
+                var orderDetailRepository = _unitOfWork.Repository<OrderDetail>();
+                foreach (var (product, quantity) in orderItems)
+                {
+                    var unitPrice = product.ProductDiscountPrice ?? product.ProductPrice;
+                    var orderDetail = new OrderDetail
+                    {
+                        OrderId = order.Id,
+                        ProductId = product.Id,
+                        Quantity = quantity,
+                        UnitPrice = unitPrice,
+                        Discount = 0, // Không có giảm giá
+                        Subtotal = unitPrice * quantity
+                    };
+
+                    orderDetailRepository.Add(orderDetail);
+                }
+
+                // Tạo giao dịch thanh toán tiền mặt
+                var paymentTransaction = new PaymentTransaction
+                {
+                    OrderId = order.Id,
+                    TransactionCode = $"CASH{DateTime.Now.ToString("yyyyMMddHHmmss")}",
+                    TransactionStatus = "Success",
+                    ResponseCode = "00",
+                    Status = PaymentStatus.Completed,
+                    PaymentMethod = "CASH",
+                    Amount = totalAmount,
+                    PaymentTime = DateTime.Now,
+                    Notes = "Thanh toán tiền mặt tại quầy",
+                    BankCode = "CASH", // Thêm giá trị mặc định cho BankCode
+                    CardType = "CASH", // Thêm giá trị mặc định cho CardType
+                    RawData = "{\"PaymentMethod\":\"CASH\",\"Amount\":" + totalAmount + "}" // Thêm giá trị JSON cho RawData
+                };
+
+                _unitOfWork.Repository<PaymentTransaction>().Add(paymentTransaction);
+                
+                // Cập nhật trạng thái đơn hàng
+                order.OrderStatus = OrderStatus.Processing;
+                order.PaymentDate = DateTime.Now;
+                order.PaymentTransactionId = paymentTransaction.Id.ToString();
+                _unitOfWork.Repository<Order>().Update(order);
+
+                await _unitOfWork.CompleteAsync();
+                await _unitOfWork.CommitTransactionAsync();
+
+                return await GetOrderByIdAsync(order.Id);
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                throw new Exception($"Lỗi khi tạo đơn hàng: {ex.Message}", ex);
+            }
+        }
+
+        public async Task<List<CustomerSearchResultDto>> SearchCustomersByPhoneAsync(string phoneNumber)
+        {
+            if (string.IsNullOrWhiteSpace(phoneNumber) || phoneNumber.Length < 3)
+            {
+                throw new ArgumentException("Số điện thoại tìm kiếm phải có ít nhất 3 ký tự");
+            }
+
+            try
+            {
+                // Lấy danh sách khách hàng từ DB trước, rồi mới thực hiện chuyển đổi sang DTO
+                var customers = await _unitOfWork.Repository<Customer>().Ts
+                    .Where(c => c.PhoneNumber.Contains(phoneNumber))
+                    .Take(10)
+                    .ToListAsync();
+
+                // Sau đó mới map sang DTO
+                return customers.Select(c => new CustomerSearchResultDto
+                {
+                    Id = c.Id,
+                    FullName = $"{c.FirstName} {c.LastName}".Trim(),
+                    PhoneNumber = c.PhoneNumber,
+                    Email = c.Email ?? "",
+                    Address = c.Address,
+                    City = c.City,
+                    Country = c.Country
+                }).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lỗi khi tìm kiếm khách hàng: {Message}", ex.Message);
+                throw new Exception($"Lỗi khi tìm kiếm khách hàng: {ex.Message}", ex);
+            }
+        }
+        
+        // Helper method để tạo địa chỉ đầy đủ
+        private string FormatAddress(string address, string city, string country)
+        {
+            var addressParts = new List<string>();
+            
+            if (!string.IsNullOrWhiteSpace(address))
+                addressParts.Add(address);
+                
+            if (!string.IsNullOrWhiteSpace(city))
+                addressParts.Add(city);
+                
+            if (!string.IsNullOrWhiteSpace(country))
+                addressParts.Add(country);
+                
+            return string.Join(", ", addressParts);
+        }
+
+        public async Task<OrderBillDto> GetOrderBillAsync(Guid orderId)
+        {
+            var order = await _unitOfWork.Repository<Order>().Ts
+                .Include(o => o.Customer)
+                .Include(o => o.OrderDetails)
+                    .ThenInclude(od => od.Product)
+                .FirstOrDefaultAsync(o => o.Id == orderId);
+
+            if (order == null)
+            {
+                throw new Exception($"Không tìm thấy đơn hàng với ID: {orderId}");
+            }
+
+            var userRepository = _unitOfWork.Repository<ApplicationUser>();
+            var createdBy = !string.IsNullOrEmpty(order.CreatedBy) 
+                ? await userRepository.Ts.FirstOrDefaultAsync(u => u.Id == order.CreatedBy) 
+                : null;
+
+            var items = new List<OrderDetailDto>();
+            foreach (var detail in order.OrderDetails)
+            {
+                var product = detail.Product;
+                string imageUrl = "";
+                
+                // Lấy ảnh sản phẩm nếu có
+                var productWithImages = await _unitOfWork.Repository<Product>().Ts
+                    .Include(p => p.ProductImages)
+                    .FirstOrDefaultAsync(p => p.Id == product.Id);
+                
+                if (productWithImages?.ProductImages?.Any() == true)
+                {
+                    imageUrl = productWithImages.ProductImages.FirstOrDefault()?.ImageUrl ?? "";
+                }
+
+                items.Add(new OrderDetailDto
+                {
+                    Id = detail.Id,
+                    ProductId = detail.ProductId,
+                    ProductName = product.ProductName,
+                    ProductImageUrl = imageUrl,
+                    Quantity = detail.Quantity,
+                    UnitPrice = detail.UnitPrice,
+                    Discount = detail.Discount,
+                    Subtotal = detail.Subtotal
+                });
+            }
+
+            // Tính toán giá trị đơn hàng
+            decimal subtotal = items.Sum(i => i.Subtotal);
+            decimal discountTotal = items.Sum(i => i.Discount * i.Quantity);
+            
+            // Ước tính VAT (10% nếu có VAT)
+            decimal vatAmount = 0;
+            if (order.OrderNumber.StartsWith("ADM")) // Đơn hàng từ admin
+            {
+                if (subtotal * 1.1m == order.TotalAmount)
+                {
+                    vatAmount = subtotal * 0.1m;
+                }
+                else
+                {
+                    vatAmount = order.TotalAmount - subtotal;
+                }
+            }
+
+            return new OrderBillDto
+            {
+                OrderNumber = order.OrderNumber,
+                CreatedAt = order.CreatedAt,
+                CustomerName = $"{order.Customer.FirstName} {order.Customer.LastName}",
+                CustomerPhone = order.Customer.PhoneNumber,
+                CustomerAddress = $"{order.ShippingAddress}, {order.ShippingCity}, {order.ShippingCountry}",
+                PaymentMethod = order.PaymentMethod,
+                Subtotal = subtotal,
+                VatAmount = vatAmount,
+                DiscountTotal = discountTotal,
+                TotalAmount = order.TotalAmount,
+                Items = items,
+                Notes = order.Notes,
+                CreatedBy = createdBy != null ? $"{createdBy.FirstName} {createdBy.LastName}" : "Hệ thống"
+            };
+        }
+
+        public async Task<OrderListResponseDto> GetOrdersAsync(OrderFilterDto filterDto)
+        {
+            try
+            {
+                var orderRepository = _unitOfWork.Repository<Order>();
+                
+                // Bắt đầu truy vấn
+                var query = orderRepository.Ts
+                    .Include(o => o.Customer)
+                    .AsQueryable();
+                
+                // Áp dụng các bộ lọc
+                if (filterDto.FromDate.HasValue)
+                {
+                    query = query.Where(o => o.CreatedAt >= filterDto.FromDate.Value.Date);
+                }
+                
+                if (filterDto.ToDate.HasValue)
+                {
+                    // Bao gồm cả ngày kết thúc
+                    var endDate = filterDto.ToDate.Value.Date.AddDays(1).AddTicks(-1);
+                    query = query.Where(o => o.CreatedAt <= endDate);
+                }
+                
+                if (filterDto.Status.HasValue)
+                {
+                    query = query.Where(o => o.OrderStatus == filterDto.Status.Value);
+                }
+                
+                if (!string.IsNullOrWhiteSpace(filterDto.SearchTerm))
+                {
+                    var searchTerm = filterDto.SearchTerm.Trim().ToLower();
+                    query = query.Where(o => 
+                        o.OrderNumber.ToLower().Contains(searchTerm) ||
+                        (o.Customer.FirstName + " " + o.Customer.LastName).ToLower().Contains(searchTerm) ||
+                        o.Customer.PhoneNumber.Contains(searchTerm)
+                    );
+                }
+                
+                // Tính tổng số đơn hàng phù hợp với điều kiện lọc
+                var totalCount = await query.CountAsync();
+                
+                // Áp dụng sắp xếp
+                query = ApplySorting(query, filterDto.SortBy, filterDto.IsDescending);
+                
+                // Áp dụng phân trang
+                var pageSize = filterDto.PageSize > 0 ? (filterDto.PageSize <= 50 ? filterDto.PageSize : 50) : 10;
+                var pageNumber = filterDto.PageNumber > 0 ? filterDto.PageNumber : 1;
+                var skip = (pageNumber - 1) * pageSize;
+                
+                var orders = await query
+                    .Skip(skip)
+                    .Take(pageSize)
+                    .ToListAsync();
+                
+                // Chuyển đổi sang DTO
+                var orderDtos = orders.Select(o => new OrderListDto
+                {
+                    Id = o.Id,
+                    OrderNumber = o.OrderNumber,
+                    CreatedAt = o.CreatedAt,
+                    CustomerId = o.CustomerId,
+                    CustomerName = $"{o.Customer?.FirstName} {o.Customer?.LastName}".Trim(),
+                    PhoneNumber = o.Customer?.PhoneNumber,
+                    TotalAmount = o.TotalAmount,
+                    OrderStatus = o.OrderStatus,
+                    PaymentMethod = o.PaymentMethod,
+                    PaymentStatus = o.PaymentDate.HasValue ? "Đã thanh toán" : "Chưa thanh toán",
+                    Note = o.Notes
+                }).ToList();
+                
+                // Tạo kết quả phân trang
+                var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+                
+                return new OrderListResponseDto
+                {
+                    Orders = orderDtos,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    TotalPages = totalPages
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lỗi khi lấy danh sách đơn hàng: {Message}", ex.Message);
+                throw new Exception($"Lỗi khi lấy danh sách đơn hàng: {ex.Message}", ex);
+            }
+        }
+        
+        private IQueryable<Order> ApplySorting(IQueryable<Order> query, string sortBy, bool isDescending)
+        {
+            switch (sortBy?.ToLower())
+            {
+                case "ordernumber":
+                    return isDescending 
+                        ? query.OrderByDescending(o => o.OrderNumber) 
+                        : query.OrderBy(o => o.OrderNumber);
+                case "customername":
+                    return isDescending 
+                        ? query.OrderByDescending(o => o.Customer.LastName).ThenByDescending(o => o.Customer.FirstName) 
+                        : query.OrderBy(o => o.Customer.LastName).ThenBy(o => o.Customer.FirstName);
+                case "totalamount":
+                    return isDescending 
+                        ? query.OrderByDescending(o => o.TotalAmount) 
+                        : query.OrderBy(o => o.TotalAmount);
+                case "status":
+                    return isDescending 
+                        ? query.OrderByDescending(o => o.OrderStatus) 
+                        : query.OrderBy(o => o.OrderStatus);
+                default:
+                    // Mặc định sắp xếp theo CreatedAt
+                    return isDescending 
+                        ? query.OrderByDescending(o => o.CreatedAt) 
+                        : query.OrderBy(o => o.CreatedAt);
             }
         }
     }

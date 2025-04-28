@@ -6,6 +6,7 @@ using Ecommerce.Shared.Storage.Minio.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Minio;
+using Minio.DataModel;
 using Minio.Exceptions;
 using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
@@ -420,24 +421,23 @@ namespace Ecommerce.Shared.Storage.Minio.Services
             }
         }
 
-        public async Task<bool> ReapplyBucketPolicyAsync()
+        private async Task ApplyBucketPolicyAsync()
         {
             try
             {
                 if (_minioClient == null)
                 {
                     _logger?.LogError("MinioClient chưa được khởi tạo!");
-                    return false;
+                    return;
                 }
                 
                 bool found = await _minioClient.BucketExistsAsync(_minioConfig.BucketName);
                 if (!found)
                 {
                     _logger?.LogError($"Bucket {_minioConfig.BucketName} không tồn tại");
-                    return false;
+                    return;
                 }
                 
-
                 var policy = $@"{{
                     ""Version"": ""2012-10-17"",
                     ""Statement"": [
@@ -465,13 +465,58 @@ namespace Ecommerce.Shared.Storage.Minio.Services
                 
                 await _minioClient.SetPolicyAsync(_minioConfig.BucketName, policy);
                 Console.WriteLine($"Đã áp dụng lại policy cho bucket {_minioConfig.BucketName}");
-                
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Lỗi khi áp dụng policy cho bucket: {Message}", ex.Message);
+            }
+        }
+
+        public async Task<bool> ReapplyBucketPolicyAsync()
+        {
+            try
+            {
+                await ApplyBucketPolicyAsync();
                 return true;
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Lỗi khi áp dụng lại policy cho bucket: {Message}", ex.Message);
+                _logger?.LogError(ex, "Lỗi khi áp dụng lại chính sách bucket: {Message}", ex.Message);
                 return false;
+            }
+        }
+        
+        public async Task<string> CopyFileAsync(string sourceObjectName, string destinationObjectName)
+        {
+            try
+            {
+                if (_minioClient == null)
+                {
+                    _logger?.LogError("MinioClient chưa được khởi tạo!");
+                    return $"/images/fallback-{Guid.NewGuid()}.png";
+                }
+                
+                await EnsureBucketExistsAsync();
+                
+                // Tạo CopySource cho file nguồn
+                var copySourceArgs = new CopySourceObjectArgs()
+                    .WithBucket(_minioConfig.BucketName)
+                    .WithObject(sourceObjectName);
+                
+                // Thực hiện sao chép file
+                await _minioClient.CopyObjectAsync(
+                    new CopyObjectArgs()
+                        .WithBucket(_minioConfig.BucketName)
+                        .WithObject(destinationObjectName)
+                        .WithCopyObjectSource(copySourceArgs)
+                );
+                
+                return await GetFileUrlAsync(destinationObjectName);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Lỗi khi sao chép file trong Minio: {Message}", ex.Message);
+                return $"/images/fallback-{Guid.NewGuid()}.png";
             }
         }
     }
